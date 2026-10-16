@@ -55,10 +55,9 @@ Both are host-only and are not linked into the PS5 application.
 `assets/audio/sfx/glass/*.wav` those of ProsperoEden. They were generated for
 those projects with ElevenLabs Sound Effects v2 and prepared with
 `tools/process-sfx.py` (trimmed, faded and levelled). No sound effect was
-generated for this repository. `assets/audio/music/*.ogg` ("First Light",
-"Open Strings" and "Quiet Hours") are the project's own background music,
-supplied by its owner and encoded to 48 kHz OGG Vorbis at -18 LUFS. All are
-Copyright (C) 2026 BlackBearReloaded and distributed under the project licence.
+generated for this repository. They are Copyright (C) 2026 BlackBearReloaded
+and distributed under the project licence. (The kit's background music is not
+part of Signal Companion; see "Presentation assets".)
 
 ## Music decoding
 
@@ -136,13 +135,11 @@ carry matching SPDX identifiers.
 ## Presentation assets
 
 `sce_sys/icon0.png`, `sce_sys/pic0.dds` (shown while the title is selected) and
-`sce_sys/pic1.dds` (shown while it starts) are the project's own artwork,
-supplied by its owner; `background-source.png` and
-`launch-background-source.png` are the pictures the two backgrounds were made
-from. `sce_sys/snd0.at9`, the music the console plays while the title is
-selected, is the owner's own track, encoded with
-[ps5-at9-converter](https://github.com/blackbearreloaded/ps5-at9-converter)
-(57.6 s, 192 kb/s, -28 LUFS, whole-track loop).
+`sce_sys/pic1.dds` (shown while it starts) are Signal Companion's own artwork,
+made for it by its owner; `art/` holds the pictures they were made from.
+Signal Companion has no music: the kit's `sce_sys/snd0.at9` and
+`assets/audio/music/*.ogg` are its author's own tracks and were removed, so the
+title is silent on the home screen and plays no background music.
 `HUI_ICON=<file> tools/host-snapshots.sh` still renders a plain icon
 with the project's own renderer, for forks that want one of their own. The
 cover art inside the app is rendered at start-up from invented titles; no real
