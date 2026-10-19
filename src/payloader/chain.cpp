@@ -140,10 +140,12 @@ std::string copy_into_chain(const std::string &root, const std::string &director
 std::string today()
 {
     const std::time_t now = std::time(nullptr);
-    std::tm local{};
-    localtime_r(&now, &local);
-    char text[16];
-    std::strftime(text, sizeof(text), "%Y%m%d", &local);
+    // std::localtime, not localtime_r: the console's libc has no localtime_r. Called from the
+    // store's worker thread only.
+    const std::tm *local = std::localtime(&now);
+    char text[16] = "00000000";
+    if (local != nullptr)
+        std::strftime(text, sizeof(text), "%Y%m%d", local);
     return text;
 }
 
