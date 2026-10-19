@@ -151,7 +151,7 @@ bool format_autoload_lines(const std::vector<AutoloadEntry> &list, std::string &
             continue;
         }
         const std::string_view name = trim(entry.target);
-        if (name.empty() || name.front() == '!' || name.find('/') != std::string_view::npos)
+        if (name.empty() || name.front() == '!')
             return false;
         for (const char c : name)
             if (static_cast<unsigned char>(c) < 32 || c == 127)

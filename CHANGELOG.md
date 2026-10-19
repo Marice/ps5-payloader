@@ -21,3 +21,7 @@ All notable changes to PayLoader are recorded here. The format follows
 - Autoload screen: the boot chain the console uses. ps5-autoloader's `autoload.txt` (USB before `/data`) is edited
   directly, also without pldmgr, with a daily backup of the list; pldmgr's own list when the autoloader has none.
   Payloads screen: "Start with autoload" acts on the same chain.
+- The Signal suite: PayLoader keeps its repository in pldmgr's sources, installs or updates the whole suite in one
+  go, recommends it when ps5-homeassistant is installed alone, and offers to start it with the console.
+- PayLoader brings pldmgr: when it does not run, X starts the bundled copy through the ELF loader. pldmgr's own
+  icon and browser start are switched off; PayLoader is its front-end.

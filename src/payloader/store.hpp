@@ -27,6 +27,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace hui::payloader
@@ -78,6 +79,7 @@ struct View
     AutoloaderList chain_list; // when chain.kind is autoloader
 
     std::set<std::string> busy;
+    bool pldmgr_starting = false; // the app sent its pldmgr to the ELF loader and waits for it
 };
 
 struct Notice
@@ -135,6 +137,10 @@ class Store
     void add_to_chain(const Payload &payload);
     // Takes every line naming file out of the list; the file stays.
     void remove_from_chain(const std::string &file);
+    // Starts the pldmgr this app carries: its own front-end off in its config, then the ELF loader.
+    void start_pldmgr();
+    // Tests: replaces the ELF loader (port 9021).
+    void set_loader(std::function<bool(std::string_view)> loader);
     // The Signal suite: installs (or updates) the three from their repository, in order.
     void install_suite();
     // Puts the installed suite payloads in the boot chain, in suite order; listed ones stay put.
@@ -156,9 +162,11 @@ class Store
 
     void read_chain();
     void ensure_suite_source(Pldmgr &api);
+    void ensure_front_end_off(Pldmgr &api);
 
     TransportFactory factory_;
     std::string root_;
+    std::function<bool(std::string_view)> loader_;
     std::unique_ptr<Pldmgr> api_; // used on the worker thread only
     std::mutex mutex_;
     View state_; // written by the worker under mutex_

@@ -4,6 +4,7 @@
 #include "concepts/payloader/screen.hpp"
 
 #include "core/tween.hpp"
+#include "payloader/launcher.hpp"
 
 #include <utility>
 
@@ -16,6 +17,7 @@ namespace
 // Dialog purposes of the base; screens use positive numbers.
 constexpr int kConflict = -1;
 constexpr int kSuiteStartup = -2; // "Also start the suite with the console?"
+constexpr int kStartPldmgr = -3;  // "Start pldmgr?"
 
 } // namespace
 
@@ -94,6 +96,11 @@ void Screen::update(const InputFrame &input, float dt, app::Feedback &feedback)
                     store.install(conflict.payload, conflict.source_url,
                                   hui::payloader::InstallMode::replace, conflict.conflict_slot);
             }
+            else if (dialog_purpose_ == kStartPldmgr)
+            {
+                if (dialog_.choice() == 1)
+                    store.start_pldmgr();
+            }
             else if (dialog_purpose_ == kSuiteStartup)
             {
                 if (dialog_.choice() == 1)
@@ -123,10 +130,27 @@ void Screen::update(const InputFrame &input, float dt, app::Feedback &feedback)
     }
     else if (!linked)
     {
-        if (input.is_pressed(Action::confirm))
+        if (input.is_pressed(Action::confirm) && !now.pldmgr_starting)
         {
-            store.refresh();
-            feedback.play(audio::Cue::select);
+            const hui::payloader::BundledPldmgr &bundled = hui::payloader::bundled_pldmgr();
+            if (now.link == Link::offline && bundled.present)
+            {
+                dialog_purpose_ = kStartPldmgr;
+                dialog_.open({ui::StatusKind::info,
+                              "Start pldmgr?",
+                              "PayLoader brings Payload Manager " + bundled.version +
+                                  " by itsPLK and sends it to the ELF loader. Its own icon and "
+                                  "browser start stay off: PayLoader is its front-end. After a "
+                                  "restart of the console, PayLoader asks again.",
+                              {{"Not now"}, {"Start pldmgr", ui::ButtonKind::primary}},
+                              1},
+                             feedback);
+            }
+            else
+            {
+                store.refresh();
+                feedback.play(audio::Cue::select);
+            }
         }
     }
     else
@@ -212,7 +236,11 @@ void Screen::draw(app::Frame &frame) const
     {
         draw_link_card(paint, {kMargin, kTop, kRight - kMargin, 560.0f}, now);
         static constexpr ui::Hint kRetry[] = {{ui::Button::cross, "Check now"}};
-        draw_hints(frame.scene, context_.fonts, look, kRetry);
+        static constexpr ui::Hint kStart[] = {{ui::Button::cross, "Start pldmgr"}};
+        const bool startable =
+            now.link == Link::offline && hui::payloader::bundled_pldmgr().present;
+        draw_hints(frame.scene, context_.fonts, look, startable ? std::span<const ui::Hint>(kStart)
+                                                                : std::span<const ui::Hint>(kRetry));
     }
     frame.scene.pop_opacity();
     ui::Canvas above{frame.overlay, context_.fonts, 0, clock_};

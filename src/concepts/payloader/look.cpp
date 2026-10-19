@@ -3,6 +3,8 @@
 
 #include "concepts/payloader/look.hpp"
 
+#include "payloader/launcher.hpp"
+
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -138,6 +140,30 @@ void draw_link_card(ui::Painter &paint, const Rect &r, const View &view)
         paint.heading("Looking for pldmgr", x, y, 38.0f, look.text);
         paragraph(paint, "Asking 127.0.0.1:8084 whether Payload Manager runs.", x, y + 56.0f, 25.0f,
                   width, look.text_muted);
+        return;
+    }
+    const hui::payloader::BundledPldmgr &bundled = hui::payloader::bundled_pldmgr();
+    if (view.pldmgr_starting)
+    {
+        paint.heading("Starting pldmgr", x, y, 38.0f, look.text);
+        paragraph(paint, "Sent to the ELF loader; waiting for it to answer on 127.0.0.1:8084.", x,
+                  y + 56.0f, 25.0f, width, look.text_muted);
+        return;
+    }
+    if (view.link == Link::offline && bundled.present)
+    {
+        paint.heading("pldmgr is not running", x, y, 38.0f, look.text);
+        y = paragraph(paint,
+                      "PayLoader works through Payload Manager (pldmgr) by itsPLK, and brings its own "
+                      "copy, version " +
+                          bundled.version +
+                          ". Press X to start it. pldmgr's own icon and browser start stay off: "
+                          "PayLoader is its front-end.",
+                      x, y + 56.0f, 25.0f, width, look.text_muted);
+        paragraph(paint,
+                  "pldmgr does not start with the console by itself; PayLoader asks again after a "
+                  "restart. Once running, pldmgr keeps itself up to date (Repository screen).",
+                  x, y + 18.0f, 23.0f, width, look.text_muted);
         return;
     }
     const char *title = "Start pldmgr first";

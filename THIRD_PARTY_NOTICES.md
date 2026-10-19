@@ -147,3 +147,11 @@ cover art inside the app is rendered at start-up from invented titles; no real
 product's name, artwork or trademark is used.
 
 No proprietary runtime module, encryption key, or game file is included.
+
+## Payload Manager (pldmgr)
+
+`assets/payload/pldmgr.elf` in the built app is Payload Manager by itsPLK
+(https://github.com/itsPLK/ps5-payload-manager), distributed unchanged under the
+GNU General Public License v3.0. The version and its SHA-256 are in
+`assets/payload/pldmgr.txt`; the corresponding source is the release tag of that
+version in the repository above. `tools/bundle-pldmgr.sh` fetches it.

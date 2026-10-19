@@ -396,7 +396,8 @@ class PayloadsScreen final : public Screen
     static bool in_chain(const View &now, const Payload &p)
     {
         if (now.have_chain && now.chain.kind == hui::payloader::ChainKind::autoloader)
-            return hui::payloader::autoload_contains(now.chain_list.entries, p.filename);
+            return hui::payloader::autoload_contains(now.chain_list.entries, p.path) ||
+                   hui::payloader::autoload_contains(now.chain_list.entries, p.filename);
         return hui::payloader::autoload_contains(
             hui::payloader::parse_autoload_list(now.config.autoload_list), p.slot);
     }
@@ -407,7 +408,9 @@ class PayloadsScreen final : public Screen
         if (now.have_chain && now.chain.kind == hui::payloader::ChainKind::autoloader)
         {
             if (in_chain(now, p))
-                hui::payloader::store().remove_from_chain(p.filename);
+                hui::payloader::store().remove_from_chain(
+                    hui::payloader::autoload_contains(now.chain_list.entries, p.path) ? p.path
+                                                                                      : p.filename);
             else
                 hui::payloader::store().add_to_chain(p);
             return;

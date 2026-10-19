@@ -3,11 +3,16 @@
 
 #include "payloader/store.hpp"
 
+#include "core/save_file.hpp"
+#include "payloader/launcher.hpp"
 #include "payloader/repo_status.hpp"
 #include "payloader/suite.hpp"
 #include "payloader/versions.hpp"
 
 #include <algorithm>
+#include <sys/stat.h>
+#include <thread>
+#include <chrono>
 #include <utility>
 
 namespace hui::payloader
@@ -65,8 +70,14 @@ std::string join_csv(const std::vector<std::string> &items)
 } // namespace
 
 Store::Store(TransportFactory factory, std::string root)
-    : factory_(std::move(factory)), root_(std::move(root))
+    : factory_(std::move(factory)), root_(std::move(root)),
+      loader_([](std::string_view elf) { return push_to_loader(kLoaderPort, elf); })
 {
+}
+
+void Store::set_loader(std::function<bool(std::string_view)> loader)
+{
+    loader_ = std::move(loader);
 }
 
 void Store::want(Topic topic)
@@ -278,6 +289,7 @@ void Store::check_link(Pldmgr &api)
     relinked_ = true;
     repository_asked_ = false;
     sources_asked_ = false;
+    ensure_front_end_off(api);
     ensure_suite_source(api);
     read_payloads(api);
     read_config(api);
@@ -607,13 +619,14 @@ void Store::add_to_chain(const Payload &payload)
             if (chain.kind != ChainKind::autoloader ||
                 !read_autoloader(root_, chain.directory, list))
                 error = "ps5-autoloader's list is not found";
-            if (error.empty())
-                error = copy_into_chain(root_, chain.directory, source, name);
+            // pldmgr keeps its payloads readable for itself only, so they are not copied: the list
+            // names their full path, which ps5-unified-autoloader loads as it is (and an update
+            // through pldmgr keeps that path).
             if (error.empty())
             {
                 if (!list.entries.empty() && !list.entries.back().wait)
                     list.entries.push_back(AutoloadEntry::pause(3000));
-                list.entries.push_back(AutoloadEntry::payload(name));
+                list.entries.push_back(AutoloadEntry::payload(source));
                 error = write_autoloader(root_, chain.directory, list.entries, today());
             }
             Notice n;
@@ -659,6 +672,123 @@ void Store::remove_from_chain(const std::string &file)
             n.detail = error;
             notice(std::move(n));
             read_chain();
+        });
+}
+
+// PayLoader is pldmgr's front-end: its own icon and browser start are switched off, once per
+// console (a marker in PayLoader's data folder), so a user who turns them on again keeps that.
+void Store::ensure_front_end_off(Pldmgr &api)
+{
+    const std::string marker = data_dir() + "/pldmgr-front-end-off";
+    std::string seen;
+    if (save::read_file(marker, &seen, 64))
+        return;
+    Config config;
+    if (!api.config(config).ok)
+        return;
+    if (config.auto_install_app || config.auto_browser_open)
+    {
+        ConfigChange change;
+        change.auto_install_app = false;
+        change.auto_browser_open = false;
+        if (!api.save_config(change).ok)
+            return;
+        Notice n;
+        n.title = "PayLoader is pldmgr's front-end now";
+        n.detail = "pldmgr no longer opens the browser or adds its own icon. An icon it added "
+                   "earlier can be deleted from the home screen.";
+        notice(std::move(n));
+    }
+    save::ensure_directory(data_dir());
+    save::write_atomic(marker, "1\n");
+}
+
+void Store::start_pldmgr()
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (state_.pldmgr_starting)
+            return;
+        state_.pldmgr_starting = true;
+        ++revision_;
+    }
+    worker_.queue(
+        [this]
+        {
+            const BundledPldmgr &bundled = bundled_pldmgr();
+            std::string error;
+            std::string elf;
+            if (!bundled.present || !save::read_file(bundled.path, &elf, 64u << 20))
+                error = "This PayLoader does not carry pldmgr";
+            // Its own front-end off before it starts: the browser would open at once otherwise.
+            if (error.empty())
+            {
+                const std::string path = root_ + kPldmgrConfig;
+                std::string current;
+                const bool exists = save::read_file(path, &current, 64 * 1024);
+                struct stat info
+                {
+                };
+                // pldmgr 0.6.3 keeps its config readable for itself only (0600, root): then it
+                // stays as it is, and the front-end is switched off over the API once pldmgr runs.
+                const bool hidden = !exists && ::stat(path.c_str(), &info) == 0;
+                if (hidden)
+                {
+                }
+                else if (exists)
+                {
+                    const std::string backup = path + ".bak-payloader-" + today();
+                    std::string kept;
+                    if (!save::read_file(backup, &kept, 64 * 1024) &&
+                        !save::write_atomic(backup, current).empty())
+                        error = "pldmgr's settings could not be backed up";
+                }
+                else
+                {
+                    save::ensure_directory(root_ + "/data/pldmgr");
+                }
+                const std::string wanted = config_without_front_end(exists ? current : "");
+                if (error.empty() && !hidden && wanted != current &&
+                    !save::write_atomic(path, wanted).empty())
+                    error = "pldmgr's settings could not be written";
+            }
+            if (error.empty() && !loader_(elf))
+                error = "Nothing took it on port 9021: is an ELF loader running (etaHEN)?";
+            bool up = false;
+            if (error.empty())
+            {
+                if (!api_)
+                    api_ = std::make_unique<Pldmgr>(factory_());
+                for (int i = 0; i < 40 && !up; ++i)
+                {
+                    std::string version;
+                    bool supported = false;
+                    up = api_->version(version, supported).ok;
+                    if (!up)
+                        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                }
+                if (!up)
+                    error = "pldmgr was sent, but it did not answer within 20 seconds";
+            }
+            Notice n;
+            n.failed = !error.empty();
+            n.title = error.empty() ? "pldmgr " + bundled.version + " started" : "pldmgr did not start";
+            n.detail = error;
+            notice(std::move(n));
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                state_.pldmgr_starting = false;
+                ++revision_;
+            }
+            if (up)
+            {
+                // Its own front-end off, also when the config file could not be written.
+                ConfigChange change;
+                change.auto_install_app = false;
+                change.auto_browser_open = false;
+                api_->save_config(change);
+                check_link(*api_);
+            }
         });
 }
 
@@ -830,13 +960,12 @@ void Store::add_suite_to_chain()
                     const Payload *p = installed_suite_payload(installed, id);
                     if (!error.empty() || p == nullptr)
                         continue;
-                    // A newer build replaces an older copy of the same payload in the folder.
-                    error = copy_into_chain(root_, chain.directory, p->path, p->filename, true);
+                    // By full path (pldmgr's files cannot be copied); one already listed stays.
                     bool listed = false;
                     for (const AutoloadEntry &e : entries)
                         listed = listed || (!e.wait && suite_rank(e.target) == suite_rank(id));
-                    if (error.empty() && !listed)
-                        entries = with_suite_entry(entries, p->filename);
+                    if (!listed)
+                        entries = with_suite_entry(entries, p->path);
                 }
                 if (error.empty())
                     error = write_autoloader(root_, chain.directory, entries, today());

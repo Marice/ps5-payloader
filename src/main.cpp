@@ -7,6 +7,7 @@
 // markers and frame pacing are logged for hardware runs.
 
 #include "app/shell.hpp"
+#include "payloader/launcher.hpp"
 #include "app/tour.hpp"
 #include "audio/cues.hpp"
 #include "audio/mixer.hpp"
@@ -208,6 +209,7 @@ int main()
     for (const std::string &error : bank.errors)
         sys::log("[HUI] sound rejected %s", error.c_str());
 
+    hui::payloader::set_payloader_paths(kAssets, kDataRoot);
     app::Shell shell(fonts, catalog, kDataRoot, renderer.glass_texture());
     const std::string version = read_content_version("/app0/sce_sys/param.json");
     shell.set_version(version);

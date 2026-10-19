@@ -28,3 +28,4 @@ dist/
 /docs/decision-log.md
 # Windows download markers
 *:Zone.Identifier
+assets/payload/pldmgr.txt

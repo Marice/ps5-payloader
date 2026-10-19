@@ -46,8 +46,11 @@ bool format_autoload_list(const std::vector<AutoloadEntry> &list, std::string &o
 // the list's folder or "!<ms>". Blank lines and stray carriage returns are skipped.
 std::vector<AutoloadEntry> parse_autoload_lines(std::string_view text);
 
-// One entry per line, each line ended. False when a name is empty, starts
-// with '!', holds a '/' or a control character, or a wait is out of range.
+// One entry per line, each line ended. A name may be a path: one that starts with
+// '/' is used as it is, any other is relative to the list's folder (ps5-unified-
+// autoloader's rule). Lines starting with '#' (comments) and '@' (directives such
+// as @sync) are kept as they are. False when a name is empty, starts with '!',
+// or holds a control character, or a wait is out of range.
 bool format_autoload_lines(const std::vector<AutoloadEntry> &list, std::string &out);
 
 // Moves entry index one place up (-1) or down (+1). False at either end.
