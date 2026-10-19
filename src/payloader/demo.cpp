@@ -43,14 +43,16 @@ constexpr std::string_view kRepository = R"({"sources":[
     {"id":"klogsrv","name":"Kernel Log Server","filename":"klogsrv.elf","description":"Streams the kernel log over the network on port 3232.","version":"0.5","checksum":"dd","last_update":"2026-06-01","category":"Tools","author":""},
     {"id":"websrv","name":"Web Server","filename":"websrv.elf","description":"A small web server with a homebrew launcher.","version":"0.25","checksum":"ee","last_update":"2026-09-30","category":"Tools","author":""}
   ]},
-  {"id":"s1","name":"Signal Suite","url":"https://marice.example/payloads.json","error":false,"payloads":[
-    {"id":"ps5-homeassistant","name":"ps5-homeassistant","filename":"ps5-homeassistant.elf","description":"The PS5 as a device in Home Assistant.","version":"0.1.0","checksum":"ff","last_update":"2026-10-17","category":"Tools","author":"Marice"}
+  {"id":"s1","name":"Signal suite","url":"https://raw.githubusercontent.com/Marice/ps5-signal-suite/main/payloads.json","error":false,"payloads":[
+    {"id":"ps5-exporter","name":"ps5-exporter","filename":"ps5-exporter.elf","description":"The console's temperatures, power, fan, clocks, CPU load, frame rate and running game as metrics.","version":"v0.3.1","checksum":"aa","last_update":"2026-10-19","category":"Signal suite","author":"Marice"},
+    {"id":"ps5-homeassistant","name":"ps5-homeassistant","filename":"ps5-homeassistant.elf","description":"The PS5 as a device in Home Assistant.","version":"v0.2.1","checksum":"bb","last_update":"2026-10-19","category":"Signal suite","author":"Marice"},
+    {"id":"ps5-signal","name":"ps5-signal","filename":"ps5-signal.elf","description":"Beeps and the console's light for you and for homebrew.","version":"v0.2.1","checksum":"cc","last_update":"2026-10-19","category":"Signal suite","author":"Marice"}
   ]}
 ]})";
 
 constexpr std::string_view kSources =
     R"({"sources":[{"id":"default","name":"Official Repository","url":"https://itsplk.github.io/ps5-payloads-mirror/payloads_v2.json","removable":false},)"
-    R"({"id":"s1","name":"Signal Suite","url":"https://marice.example/payloads.json","removable":true}]})";
+    R"({"id":"s1","name":"Signal suite","url":"https://raw.githubusercontent.com/Marice/ps5-signal-suite/main/payloads.json","removable":true}]})";
 
 constexpr std::string_view kProcesses = R"({"processes":[
   {"pid":64,"name":"SceShellUI","memory":610.0,"is_daemon":false},

@@ -3,6 +3,8 @@
 
 #include "payloader/store.hpp"
 
+#include "payloader/repo_status.hpp"
+#include "payloader/suite.hpp"
 #include "payloader/versions.hpp"
 
 #include <algorithm>
@@ -276,6 +278,7 @@ void Store::check_link(Pldmgr &api)
     relinked_ = true;
     repository_asked_ = false;
     sources_asked_ = false;
+    ensure_suite_source(api);
     read_payloads(api);
     read_config(api);
 }
@@ -653,6 +656,223 @@ void Store::remove_from_chain(const std::string &file)
             n.failed = !error.empty();
             n.title =
                 error.empty() ? file + " no longer starts with the console" : file + " not removed";
+            n.detail = error;
+            notice(std::move(n));
+            read_chain();
+        });
+}
+
+// The suite's repository is always among pldmgr's sources, and pldmgr shows extra sources.
+void Store::ensure_suite_source(Pldmgr &api)
+{
+    std::vector<Source> sources;
+    Config config;
+    if (!api.sources(sources).ok || !api.config(config).ok)
+        return;
+    bool listed = false;
+    for (const Source &source : sources)
+        listed = listed || is_suite_url(source.url);
+    bool changed = false;
+    if (!listed)
+    {
+        std::string name;
+        changed = api.add_source(kSuiteUrl, name).ok;
+    }
+    if (!config.multi_sources)
+    {
+        ConfigChange change;
+        change.multi_sources = true;
+        changed = api.save_config(change).ok || changed;
+    }
+    if (!changed)
+        return;
+    repository_asked_ = false;
+    sources_asked_ = false;
+    if (suite_told_)
+        return;
+    suite_told_ = true;
+    Notice n;
+    n.title = "Signal suite added to pldmgr";
+    n.detail = "pldmgr now also shows its extra repositories";
+    notice(std::move(n));
+}
+
+namespace
+{
+
+// The suite's payload with this id in its repository, or null.
+const RepoPayload *suite_payload(const RepoSource &suite, const char *id)
+{
+    for (const RepoPayload &p : suite.payloads)
+        if (p.key() == id)
+            return &p;
+    return nullptr;
+}
+
+// The installed copy of a suite payload: from the suite's repository first, else any repository.
+const Payload *installed_suite_payload(const PayloadList &installed, const char *id)
+{
+    const Payload *any = nullptr;
+    for (const Payload &p : installed.items)
+    {
+        if (p.kind != "repo" || p.id != id)
+            continue;
+        if (is_suite_url(p.source_url))
+            return &p;
+        if (any == nullptr)
+            any = &p;
+    }
+    return any;
+}
+
+} // namespace
+
+void Store::install_suite()
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (state_.busy.count("suite") != 0)
+            return;
+    }
+    mark_busy("suite", true);
+    run(
+        [this](Pldmgr &api)
+        {
+            std::vector<RepoSource> sources;
+            const Outcome got = api.repository(false, sources);
+            const RepoSource *suite = got.ok ? suite_source(sources) : nullptr;
+            PayloadList installed;
+            const Outcome have = api.payloads(installed);
+            bool complete = suite != nullptr && have.ok;
+            int changed = 0;
+            if (!complete)
+            {
+                Notice n;
+                n.failed = true;
+                n.title = "The Signal suite is not available";
+                n.detail = !got.ok ? got.error : "pldmgr has not read its repository yet";
+                notice(std::move(n));
+            }
+            for (std::size_t i = 0; complete && i < kSuiteIds.size(); ++i)
+            {
+                const RepoPayload *payload = suite_payload(*suite, kSuiteIds[i]);
+                if (payload == nullptr)
+                {
+                    complete = false;
+                    Notice n;
+                    n.failed = true;
+                    n.title = std::string(kSuiteIds[i]) + " is missing from the suite";
+                    notice(std::move(n));
+                    break;
+                }
+                if (repo_status(*payload, suite->url, installed).kind ==
+                    RepoStatus::Kind::installed)
+                    continue;
+                InstallResult result;
+                const Outcome done =
+                    api.install(*payload, suite->url, InstallMode::normal, "", result);
+                if (done.ok && result.conflict)
+                {
+                    // pldmgr's own question: replace the copy from another repository? The rest
+                    // waits.
+                    Notice n;
+                    n.conflict = true;
+                    n.title = payload->name + " is installed from another repository";
+                    n.payload = *payload;
+                    n.source_url = suite->url;
+                    n.conflict_slot = result.conflict_slot;
+                    n.conflict_source = result.conflict_source;
+                    n.conflict_version = result.conflict_version;
+                    notice(std::move(n));
+                    complete = false;
+                    break;
+                }
+                note(done, done.ok ? payload->name + " " + payload->version + " installed"
+                                   : payload->name + " was not installed");
+                if (!done.ok)
+                {
+                    complete = false;
+                    break;
+                }
+                ++changed;
+            }
+            read_payloads(api);
+            if (complete)
+            {
+                Notice n;
+                n.suite_installed = true;
+                n.title = changed > 0 ? "The Signal suite is installed"
+                                      : "The Signal suite was up to date";
+                notice(std::move(n));
+            }
+            mark_busy("suite", false);
+        });
+}
+
+void Store::add_suite_to_chain()
+{
+    run(
+        [this](Pldmgr &api)
+        {
+            PayloadList installed;
+            std::string error;
+            if (!api.payloads(installed).ok)
+                error = "pldmgr does not answer";
+            const Chain chain = detect_chain(root_);
+            if (error.empty() && chain.kind == ChainKind::autoloader)
+            {
+                AutoloaderList list;
+                if (!read_autoloader(root_, chain.directory, list))
+                    error = "ps5-autoloader's list cannot be read";
+                std::vector<AutoloadEntry> entries = list.entries;
+                for (const char *id : kSuiteIds)
+                {
+                    const Payload *p = installed_suite_payload(installed, id);
+                    if (!error.empty() || p == nullptr)
+                        continue;
+                    // A newer build replaces an older copy of the same payload in the folder.
+                    error = copy_into_chain(root_, chain.directory, p->path, p->filename, true);
+                    bool listed = false;
+                    for (const AutoloadEntry &e : entries)
+                        listed = listed || (!e.wait && suite_rank(e.target) == suite_rank(id));
+                    if (error.empty() && !listed)
+                        entries = with_suite_entry(entries, p->filename);
+                }
+                if (error.empty())
+                    error = write_autoloader(root_, chain.directory, entries, today());
+            }
+            else if (error.empty())
+            {
+                Config config;
+                if (!api.config(config).ok)
+                    error = "pldmgr's settings cannot be read";
+                std::vector<AutoloadEntry> entries = parse_autoload_list(config.autoload_list);
+                for (const char *id : kSuiteIds)
+                {
+                    const Payload *p = installed_suite_payload(installed, id);
+                    bool listed = false;
+                    for (const AutoloadEntry &e : entries)
+                        listed = listed || (!e.wait && suite_rank(e.target) == suite_rank(id));
+                    if (p != nullptr && !listed)
+                        entries = with_suite_entry(entries, p->slot);
+                }
+                std::string text;
+                if (error.empty() && !format_autoload_list(entries, text))
+                    error = "pldmgr cannot keep a list this long";
+                if (error.empty())
+                {
+                    ConfigChange change;
+                    change.autoload_list = text;
+                    const Outcome saved = api.save_config(change);
+                    if (!saved.ok)
+                        error = saved.error;
+                    read_config(api);
+                }
+            }
+            Notice n;
+            n.failed = !error.empty();
+            n.title = error.empty() ? "The Signal suite starts with the console"
+                                    : "The suite was not added to start-up";
             n.detail = error;
             notice(std::move(n));
             read_chain();

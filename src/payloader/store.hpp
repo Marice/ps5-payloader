@@ -93,6 +93,8 @@ struct Notice
     std::string conflict_slot;
     std::string conflict_source;
     std::string conflict_version;
+    // The whole suite is installed: the screen asks whether it should start with the console.
+    bool suite_installed = false;
 };
 
 class Store
@@ -133,6 +135,10 @@ class Store
     void add_to_chain(const Payload &payload);
     // Takes every line naming file out of the list; the file stays.
     void remove_from_chain(const std::string &file);
+    // The Signal suite: installs (or updates) the three from their repository, in order.
+    void install_suite();
+    // Puts the installed suite payloads in the boot chain, in suite order; listed ones stay put.
+    void add_suite_to_chain();
 
     // Tests: blocks until the worker has nothing left to do.
     void wait_idle();
@@ -149,6 +155,7 @@ class Store
     void mark_busy(const std::string &key, bool busy);
 
     void read_chain();
+    void ensure_suite_source(Pldmgr &api);
 
     TransportFactory factory_;
     std::string root_;
@@ -169,7 +176,8 @@ class Store
     std::atomic<bool> repository_asked_{false};
     std::atomic<bool> sources_asked_{false};
     std::atomic<bool> relinked_{false};
-    JobWorker worker_; // last: it stops before the members its jobs use
+    bool suite_told_ = false; // worker thread only: the one-time "suite added" notice
+    JobWorker worker_;        // last: it stops before the members its jobs use
 };
 
 // The app's store, made on first use.

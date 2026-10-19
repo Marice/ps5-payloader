@@ -107,6 +107,7 @@ class Screen : public app::Concept
     int dialog_purpose_ = 0;
     int prompt_purpose_ = 0;
     int kept_focus_ = 0;
+    bool suite_question_ = false;                   // the suite was installed: ask about start-up
     std::vector<hui::payloader::Notice> conflicts_; // waiting for the dialog
     float age_ = 0.0f;
     bool reduced_ = false;

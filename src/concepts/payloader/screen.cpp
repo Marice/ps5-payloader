@@ -13,8 +13,9 @@ namespace hui::concepts::payloader
 namespace
 {
 
-// The dialog purpose of an install conflict; screens use positive numbers.
+// Dialog purposes of the base; screens use positive numbers.
 constexpr int kConflict = -1;
+constexpr int kSuiteStartup = -2; // "Also start the suite with the console?"
 
 } // namespace
 
@@ -93,6 +94,11 @@ void Screen::update(const InputFrame &input, float dt, app::Feedback &feedback)
                     store.install(conflict.payload, conflict.source_url,
                                   hui::payloader::InstallMode::replace, conflict.conflict_slot);
             }
+            else if (dialog_purpose_ == kSuiteStartup)
+            {
+                if (dialog_.choice() == 1)
+                    store.add_suite_to_chain();
+            }
             else
             {
                 dialog_chosen(dialog_purpose_, dialog_.choice(), feedback);
@@ -135,6 +141,20 @@ void Screen::update(const InputFrame &input, float dt, app::Feedback &feedback)
         else if (input.is_pressed(Action::west))
             west(form_.focus_id(), feedback);
     }
+    if (!dialog_.is_open() && suite_question_)
+    {
+        suite_question_ = false;
+        dialog_purpose_ = kSuiteStartup;
+        dialog_.open(
+            {ui::StatusKind::info,
+             "Also start the suite with the console?",
+             "ps5-exporter, ps5-homeassistant and ps5-signal then start after the exploit, "
+             "in this order, a few seconds apart. Payloads that are in the list already keep "
+             "their place.",
+             {{"Not now"}, {"Add to start-up", ui::ButtonKind::primary}},
+             1},
+            feedback);
+    }
     if (!dialog_.is_open() && !conflicts_.empty())
     {
         const hui::payloader::Notice &next = conflicts_.front();
@@ -166,6 +186,8 @@ void Screen::pump_notices(app::Feedback &feedback)
             conflicts_.push_back(std::move(notice));
             continue;
         }
+        if (notice.suite_installed)
+            suite_question_ = true;
         toasts_.push(notice.failed ? ui::StatusKind::warning : ui::StatusKind::success,
                      std::move(notice.title), std::move(notice.detail));
     }

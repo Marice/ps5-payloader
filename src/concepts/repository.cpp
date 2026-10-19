@@ -11,6 +11,7 @@
 #include "concepts/payloader/ids.hpp"
 #include "concepts/payloader/screen.hpp"
 #include "payloader/repo_status.hpp"
+#include "payloader/suite.hpp"
 
 #include <string>
 #include <vector>
@@ -34,10 +35,12 @@ using hui::payloader::View;
 enum Purpose
 {
     kConfirmReinstall = 1,
+    kRecommendSuite,
 };
 
 constexpr int kRefreshRow = 1;
 constexpr int kLoadingRow = 2;
+constexpr int kSuiteRow = 3;
 
 constexpr Topic kTopics[] = {Topic::repository, Topic::payloads};
 
@@ -125,6 +128,11 @@ class RepositoryScreen final : public Screen
         if (ui::FormRow *row = form_.row(kRefreshRow))
             row->text = view.repository_busy ? "Fetching" : "";
         form_.set_disabled(kRefreshRow, view.repository_busy);
+        if (ui::FormRow *row = form_.row(kSuiteRow))
+        {
+            row->text = suite_text(view);
+            form_.set_disabled(kSuiteRow, view.busy.count("suite") != 0);
+        }
         for (const Entry &entry : entries_)
         {
             ui::FormRow *row = form_.row(entry.id);
@@ -145,9 +153,32 @@ class RepositoryScreen final : public Screen
             hui::payloader::store().refresh_repository();
             return;
         }
+        if (id == kSuiteRow)
+        {
+            hui::payloader::store().install_suite();
+            return;
+        }
         const Entry *entry = find(id);
         if (entry == nullptr)
             return;
+        // ps5-homeassistant alone does little: recommend the suite when its partners are missing.
+        if (entry->payload.key() == "ps5-homeassistant" &&
+            hui::payloader::is_suite_url(entry->source_url) && !partners_installed(view()))
+        {
+            pending_ = entry->id;
+            ask(kRecommendSuite,
+                {ui::StatusKind::info,
+                 "Install the whole suite?",
+                 "ps5-homeassistant reads the console's values from ps5-exporter and uses "
+                 "ps5-signal for "
+                 "beeps and the light. Without them Home Assistant gets little more than "
+                 "notifications. "
+                 "The whole suite installs all three, in order.",
+                 {{"Only ps5-homeassistant"}, {"Whole suite", ui::ButtonKind::primary}},
+                 1},
+                feedback);
+            return;
+        }
         const RepoStatus status =
             hui::payloader::repo_status(entry->payload, entry->source_url, view().payloads);
         if (status.kind == RepoStatus::Kind::installed)
@@ -176,6 +207,14 @@ class RepositoryScreen final : public Screen
 
     void dialog_chosen(int purpose, int choice, app::Feedback & /*feedback*/) override
     {
+        if (purpose == kRecommendSuite)
+        {
+            if (choice == 1)
+                hui::payloader::store().install_suite();
+            else if (const Entry *entry = find(pending_))
+                install(*entry);
+            return;
+        }
         if (purpose != kConfirmReinstall || choice != 1)
             return;
         if (const Entry *entry = find(pending_))
@@ -191,6 +230,19 @@ class RepositoryScreen final : public Screen
         float y = inside.y + 64.0f;
         const Entry *entry = find(form_.focus_id());
         const View &now = view();
+        if (form_.focus_id() == kSuiteRow)
+        {
+            paint.label("SIGNAL SUITE", x, y, 19.0f, look.text_muted);
+            y += 62.0f;
+            paint.heading("Three that work together", x, y, 36.0f, look.text);
+            y += 50.0f;
+            paragraph(paint,
+                      "ps5-exporter measures the console, ps5-homeassistant brings it into Home "
+                      "Assistant, ps5-signal gives it a voice and a light. Installs or updates all "
+                      "three through pldmgr, then asks whether they start with the console.",
+                      x, y, 23.0f, width, look.text);
+            return;
+        }
         if (entry == nullptr)
         {
             paint.label("REPOSITORIES", x, y, 19.0f, look.text_muted);
@@ -284,26 +336,76 @@ class RepositoryScreen final : public Screen
             form_.add_value(kLoadingRow, view.repository_busy ? "Loading the repositories" : "-",
                             "");
         }
+        if (const RepoSource *suite = hui::payloader::suite_source(view.repository))
+        {
+            form_.add_header(hui::payloader::kSuiteName);
+            form_.add_action(kSuiteRow, "Install the whole suite").description =
+                "ps5-exporter, ps5-homeassistant and ps5-signal, in order";
+            add_payloads(*suite);
+        }
         for (const RepoSource &source : view.repository)
         {
+            if (hui::payloader::is_suite_url(source.url))
+                continue; // shown first, above
             std::string header = source.name.empty() ? source.url : source.name;
             if (source.error)
                 header += " (not reachable)";
             form_.add_header(header);
-            for (const RepoPayload &p : source.payloads)
-            {
-                if (!hui::payloader::repo_payload_visible(p, source.url))
-                    continue;
-                Entry entry;
-                entry.id = ids_.id(source.url + "#" + p.key());
-                entry.source_url = source.url;
-                entry.payload = p;
-                ui::FormRow &row = form_.add_action(entry.id, display_name(p));
-                row.description = first_line(p.description);
-                entries_.push_back(std::move(entry));
-            }
+            add_payloads(source);
         }
         end_rebuild();
+    }
+
+    void add_payloads(const RepoSource &source)
+    {
+        for (const RepoPayload &p : source.payloads)
+        {
+            if (!hui::payloader::repo_payload_visible(p, source.url))
+                continue;
+            Entry entry;
+            entry.id = ids_.id(source.url + "#" + p.key());
+            entry.source_url = source.url;
+            entry.payload = p;
+            ui::FormRow &row = form_.add_action(entry.id, display_name(p));
+            row.description = first_line(p.description);
+            entries_.push_back(std::move(entry));
+        }
+    }
+
+    // The suite row's text: what pressing it would do.
+    static std::string suite_text(const View &view)
+    {
+        if (view.busy.count("suite") != 0)
+            return "Installing";
+        const hui::payloader::RepoSource *suite = hui::payloader::suite_source(view.repository);
+        if (suite == nullptr)
+            return {};
+        int installed = 0;
+        bool update = false;
+        for (const RepoPayload &p : suite->payloads)
+        {
+            const RepoStatus status = hui::payloader::repo_status(p, suite->url, view.payloads);
+            installed += status.kind == RepoStatus::Kind::installed ? 1 : 0;
+            update = update || status.kind == RepoStatus::Kind::update;
+        }
+        if (update)
+            return "Update ready";
+        return installed >= static_cast<int>(hui::payloader::kSuiteIds.size()) ? "Installed" : "";
+    }
+
+    // ps5-exporter and ps5-signal are installed (from any repository).
+    static bool partners_installed(const View &view)
+    {
+        bool exporter = false;
+        bool signal = false;
+        for (const hui::payloader::Payload &p : view.payloads.items)
+        {
+            exporter = exporter || hui::payloader::suite_rank(p.slot) == 0 ||
+                       hui::payloader::suite_rank(p.filename) == 0;
+            signal = signal || hui::payloader::suite_rank(p.slot) == 2 ||
+                     hui::payloader::suite_rank(p.filename) == 2;
+        }
+        return exporter && signal;
     }
 
     const Entry *find(int id) const

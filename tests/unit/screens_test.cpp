@@ -211,4 +211,33 @@ TEST_F(Screens, AutoloadSavesAWaitOnceTheSliderRests)
     fs::remove_all(root);
 }
 
+TEST_F(Screens, RepositoryRecommendsTheWholeSuiteForHomeAssistant)
+{
+    const std::string suite =
+        "https://raw.githubusercontent.com/Marice/ps5-signal-suite/main/payloads.json";
+    fake_.reply(
+        "GET /repository_payloads", 200,
+        R"({"sources":[{"id":"s1","name":"Signal suite","url":")" + suite +
+            R"(","payloads":[)"
+            R"({"id":"ps5-exporter","name":"ps5-exporter","filename":"ps5-exporter.elf","version":"v0.3.1"},)"
+            R"({"id":"ps5-homeassistant","name":"ps5-homeassistant","filename":"ps5-homeassistant.elf","version":"v0.2.1"},)"
+            R"({"id":"ps5-signal","name":"ps5-signal","filename":"ps5-signal.elf","version":"v0.2.1"}]}]})");
+    fake_.reply("POST /repository_install", 200, R"({"ok":true,"slot":"repo/x@1"})");
+    const std::unique_ptr<Concept> screen = hui::concepts::make_repository(context_);
+    screen->enter();
+    settle(*screen);
+    step(*screen, nav(Direction::down)); // Install the whole suite
+    step(*screen, nav(Direction::down)); // ps5-exporter
+    step(*screen, nav(Direction::down)); // ps5-homeassistant
+    step(*screen, press(Action::confirm));
+    EXPECT_FALSE(fake_.last("POST", "/repository_install").has_value()); // it asks first
+    expect_drawable(*screen);
+    step(*screen, press(Action::confirm)); // "Whole suite", the default
+    settle(*screen);
+    int installs = 0;
+    for (const Request &request : fake_.requests())
+        installs += request.target.rfind("/repository_install?id=ps5-", 0) == 0 ? 1 : 0;
+    EXPECT_EQ(installs, 3);
+}
+
 } // namespace

@@ -9,6 +9,7 @@
 
 #include "concepts/payloader/ids.hpp"
 #include "concepts/payloader/screen.hpp"
+#include "payloader/suite.hpp"
 
 #include <string>
 #include <vector>
@@ -153,6 +154,12 @@ class SettingsScreen final : public Screen
         {
             if (ids_.id(sources_[i].url) != id)
                 continue;
+            if (hui::payloader::is_suite_url(sources_[i].url))
+            {
+                toast(ui::StatusKind::info, "PayLoader keeps the Signal suite repository",
+                      "It adds it again when it is removed in pldmgr's web page");
+                return;
+            }
             if (!sources_[i].removable)
             {
                 toast(ui::StatusKind::info, "pldmgr's official repository stays");
@@ -257,7 +264,10 @@ class SettingsScreen final : public Screen
             ui::FormRow &row =
                 form_.add_action(ids_.id(s.url), s.name.empty() ? host_of(s.url) : s.name);
             row.text = host_of(s.url);
-            row.description = s.removable ? "Cross to remove it" : "pldmgr's official repository";
+            row.description = hui::payloader::is_suite_url(s.url)
+                                  ? "ps5-exporter, ps5-homeassistant, ps5-signal"
+                              : s.removable ? "Cross to remove it"
+                                            : "pldmgr's official repository";
         }
         form_.add_action(kAddSource, "Add a repository").chevron = true;
         form_.add_header("pldmgr");

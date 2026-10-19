@@ -59,9 +59,11 @@ std::string write_autoloader(const std::string &root, const std::string &directo
                              const std::vector<AutoloadEntry> &entries, const std::string &date);
 
 // Copies a payload file into the list's folder as name. Refused when another file
-// with that name is there; the same file again is fine. Returns an error, or "".
+// with that name is there, unless replace (a newer build of the same payload);
+// the same file again is fine. Returns an error, or "".
 std::string copy_into_chain(const std::string &root, const std::string &directory,
-                            const std::string &source, const std::string &name);
+                            const std::string &source, const std::string &name,
+                            bool replace = false);
 
 // "20261019" for today, local time.
 std::string today();

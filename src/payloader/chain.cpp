@@ -136,7 +136,7 @@ std::string write_autoloader(const std::string &root, const std::string &directo
 }
 
 std::string copy_into_chain(const std::string &root, const std::string &directory,
-                            const std::string &source, const std::string &name)
+                            const std::string &source, const std::string &name, bool replace)
 {
     if (name.empty() || name.find('/') != std::string::npos || name == "autoload.txt")
         return "Not a payload file name";
@@ -146,7 +146,12 @@ std::string copy_into_chain(const std::string &root, const std::string &director
     const std::string target = root + directory + "/" + name;
     std::string there;
     if (save::read_file(target, &there, kMaxPayloadFile))
-        return there == data ? std::string() : "Another " + name + " is in the folder already";
+    {
+        if (there == data)
+            return {};
+        if (!replace)
+            return "Another " + name + " is in the folder already";
+    }
     const std::string error = save::write_atomic(target, data);
     return error.empty() ? std::string() : name + " could not be copied";
 }
