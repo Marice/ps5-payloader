@@ -45,6 +45,7 @@ enum Row
     kAddWait,
     kEmpty,
     kChainInfo,
+    kRecovery,
     kPldmgrList,
     kFirstEntry = 100, // + the entry's index
 };
@@ -57,6 +58,9 @@ enum MenuTag
     kFirstPayload = 1000, // + the index into payloads_ for "Add a payload"
     kFirstFile = 2000,    // + the index into files_ (ps5-autoloader's folder)
 };
+
+// Dialog purposes.
+constexpr int kConfirmRecovery = 1;
 
 constexpr float kWaitMin = 0.5f; // seconds, the wait sliders' range and step
 constexpr float kWaitMax = 25.0f;
@@ -238,6 +242,21 @@ class AutoloadScreen final : public Screen
             list_.push_back(AutoloadEntry::pause(1000));
             save();
             return;
+        case kRecovery:
+            ask(kConfirmRecovery,
+                {ui::StatusKind::info,
+                 "Make a recovery USB?",
+                 "PayLoader copies this list and the payloads next to it to ps5_autoloader on the "
+                 "USB "
+                 "stick that is plugged in. The autoloader looks on USB first: when a change "
+                 "breaks "
+                 "the chain, plug the stick in and start the exploit, then fix the list here and "
+                 "take "
+                 "the stick out again.",
+                 {{"Cancel"}, {"Make it", ui::ButtonKind::primary}},
+                 1},
+                feedback);
+            return;
         default:
             break;
         }
@@ -296,6 +315,12 @@ class AutoloadScreen final : public Screen
                 wait_changed_at_ = clock_;
             }
         }
+    }
+
+    void dialog_chosen(int purpose, int choice, app::Feedback & /*feedback*/) override
+    {
+        if (purpose == kConfirmRecovery && choice == 1)
+            hui::payloader::store().make_recovery_usb();
     }
 
     void menu_chosen(int tag, app::Feedback & /*feedback*/) override
@@ -464,17 +489,28 @@ class AutoloadScreen final : public Screen
                 after_etahen = false;
                 continue;
             }
+            // A comment or a directive (such as @sync): kept as it is, not a payload.
+            if (entry.target.front() == '#' || entry.target.front() == '@')
+            {
+                ui::FormRow &row = form_.add_action(id, entry.target);
+                row.description = entry.target.front() == '@' ? "A directive for the autoloader"
+                                                              : "A comment in the list";
+                continue;
+            }
             char label[160];
             std::snprintf(label, sizeof(label), "%d. %s", number++,
-                          file_title(entry.target).c_str());
+                          chain_title(entry.target).c_str());
             ui::FormRow &row = form_.add_action(id, label);
             row.description = entry.target;
-            if (std::find(files_.begin(), files_.end(), entry.target) == files_.end())
+            if (!chain_file_known(entry.target))
                 row.text = "File missing";
             after_etahen = lower(entry.target).find("etahen") != std::string::npos;
         }
         form_.add_action(kAddPayload, "Add a payload").chevron = true;
         form_.add_action(kAddWait, "Add a wait").description = "One second; change it afterwards";
+        form_.add_header("Safety");
+        form_.add_action(kRecovery, "Make a recovery USB").description =
+            "This list and its files on a USB stick: plug it in when a change breaks the chain";
         if (view.chain.also_pldmgr)
         {
             form_.add_header("Then pldmgr's own list");
@@ -549,6 +585,33 @@ class AutoloadScreen final : public Screen
             save();
         }
         return true;
+    }
+
+    // A full path into pldmgr's storage is one of its installed payloads: its title. Else the file
+    // name.
+    std::string chain_title(const std::string &target) const
+    {
+        if (target.front() == '/')
+        {
+            for (const Payload &p : payloads_)
+                if (p.path == target)
+                    return p.title();
+            return file_title(target.substr(target.rfind('/') + 1));
+        }
+        return file_title(target);
+    }
+
+    // The file is there: found next to the list, or a payload pldmgr reports (its folders are
+    // readable for pldmgr only, so the app cannot look itself).
+    bool chain_file_known(const std::string &target) const
+    {
+        if (std::find(files_.begin(), files_.end(), target) != files_.end())
+            return true;
+        for (const Payload &p : payloads_)
+            if (p.path == target)
+                return true;
+        // Without pldmgr running its payloads cannot be confirmed: not called missing.
+        return target.front() == '/' && payloads_.empty();
     }
 
     static std::string lower(const std::string &text)
@@ -636,6 +699,7 @@ class AutoloadScreen final : public Screen
             {
                 const Payload &p = payloads_[i];
                 if (p.kind == "usb" || hui::payloader::autoload_contains(list_, p.filename) ||
+                    hui::payloader::autoload_contains(list_, p.path) ||
                     std::find(files_.begin(), files_.end(), p.filename) != files_.end())
                     continue;
                 items.push_back(

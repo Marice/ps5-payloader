@@ -49,7 +49,8 @@ std::string value_of(const std::string &text, std::string_view key)
         if (end == std::string::npos)
             end = text.size();
         const std::string_view line(text.data() + start, end - start);
-        if (line.size() > key.size() && line.substr(0, key.size()) == key && line[key.size()] == '=')
+        if (line.size() > key.size() && line.substr(0, key.size()) == key &&
+            line[key.size()] == '=')
         {
             std::string value(line.substr(key.size() + 1));
             while (!value.empty() && (value.back() == '\r' || value.back() == ' '))
@@ -93,8 +94,9 @@ const BundledPldmgr &bundled_pldmgr()
         b.path = folder + "/pldmgr.elf";
         if (save::read_file(folder + "/pldmgr.txt", &info, 4096) &&
             save::read_file(b.path, &head, 64u << 20) && head.size() > 64 &&
-            head.compare(0, 4, "\x7f"
-                               "ELF") == 0)
+            head.compare(0, 4,
+                         "\x7f"
+                         "ELF") == 0)
         {
             b.present = true;
             b.version = value_of(info, "version");

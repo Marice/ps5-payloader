@@ -3,8 +3,8 @@
 //
 // PayLoader brings pldmgr (itsPLK's Payload Manager, GPL-3.0) in assets/payload/pldmgr.elf, with
 // its version in pldmgr.txt (tools/bundle-pldmgr.sh). When pldmgr does not run, PayLoader can send
-// that ELF to the ELF loader on port 9021. Before that it switches off pldmgr's own front-end in its
-// config file: no home screen icon of its own (AUTO_INSTALL_APP) and no browser at start
+// that ELF to the ELF loader on port 9021. Before that it switches off pldmgr's own front-end in
+// its config file: no home screen icon of its own (AUTO_INSTALL_APP) and no browser at start
 // (AUTO_BROWSER_OPEN). Once running, pldmgr updates itself from its official repository.
 //
 //   set_payloader_paths("/app0/assets", "/download0/hui");
@@ -36,8 +36,8 @@ struct BundledPldmgr
 // Read once, then remembered.
 const BundledPldmgr &bundled_pldmgr();
 
-// pldmgr's config text with AUTO_INSTALL_APP=0 and AUTO_BROWSER_OPEN=0; every other line stays as it
-// was. An empty text gets pldmgr 0.6's defaults with those two off.
+// pldmgr's config text with AUTO_INSTALL_APP=0 and AUTO_BROWSER_OPEN=0; every other line stays as
+// it was. An empty text gets pldmgr 0.6's defaults with those two off.
 std::string config_without_front_end(std::string_view text);
 
 // Sends data to a loopback port and closes, as an ELF loader takes a payload. True when every byte

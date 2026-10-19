@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <cctype>
 #include <ctime>
 
@@ -101,8 +102,12 @@ bool read_autoloader(const std::string &root, const std::string &directory, Auto
         struct stat info
         {
         };
-        if (!entry.wait && ::stat((root + directory + "/" + entry.target).c_str(), &info) == 0 &&
-            S_ISREG(info.st_mode))
+        if (entry.wait || entry.target.empty())
+            continue;
+        const std::string path = entry.target.front() == '/'
+                                     ? root + entry.target
+                                     : root + directory + "/" + entry.target;
+        if (::stat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode))
             list.files.push_back(entry.target);
     }
     std::sort(list.files.begin(), list.files.end());
@@ -154,6 +159,60 @@ std::string copy_into_chain(const std::string &root, const std::string &director
     }
     const std::string error = save::write_atomic(target, data);
     return error.empty() ? std::string() : name + " could not be copied";
+}
+
+std::string make_recovery_usb(const std::string &root, const std::string &directory,
+                              const std::string &date, std::string &usb)
+{
+    AutoloaderList list;
+    if (!read_autoloader(root, directory, list))
+        return "The list cannot be read";
+    std::string drive;
+    for (int i = 0; i < 8 && drive.empty(); ++i)
+    {
+        const std::string place = "/mnt/usb" + std::to_string(i);
+        struct stat info
+        {
+        };
+        if (::stat((root + place).c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
+            continue;
+        // Writable for this app: a test file in the folder the copy goes to.
+        const std::string folder = root + place + "/" + kGeneric;
+        save::ensure_directory(folder);
+        if (save::write_atomic(folder + "/.payloader-test", "1\n").empty())
+        {
+            ::unlink((folder + "/.payloader-test").c_str());
+            drive = place;
+        }
+    }
+    if (drive.empty())
+        return "No USB drive this app can write: plug one in (exFAT or FAT32)";
+    if (drive + "/" + kGeneric == directory)
+        return "The list in use is on this USB drive already";
+    const std::string target = root + drive + "/" + kGeneric;
+    std::string existing;
+    if (save::read_file(target + "/autoload.txt", &existing, kMaxList))
+    {
+        std::string kept;
+        if (!save::read_file(target + "/autoload.txt.bak-payloader-" + date, &kept, kMaxList) &&
+            !save::write_atomic(target + "/autoload.txt.bak-payloader-" + date, existing).empty())
+            return "The list on the USB drive could not be backed up";
+    }
+    for (const AutoloadEntry &entry : list.entries)
+    {
+        if (entry.wait || entry.target.empty() || entry.target.front() == '/' ||
+            entry.target.front() == '#' || entry.target.front() == '@')
+            continue;
+        std::string data;
+        if (!save::read_file(root + directory + "/" + entry.target, &data, kMaxPayloadFile))
+            return entry.target + " cannot be read";
+        if (!save::write_atomic(target + "/" + entry.target, data).empty())
+            return entry.target + " could not be copied to the USB drive";
+    }
+    if (!save::write_atomic(target + "/autoload.txt", list.text).empty())
+        return "autoload.txt could not be written to the USB drive";
+    usb = drive;
+    return {};
 }
 
 std::string today()

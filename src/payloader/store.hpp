@@ -135,6 +135,9 @@ class Store
     void save_chain(const std::vector<AutoloadEntry> &entries);
     // Copies an installed payload's file next to the list, then appends it.
     void add_to_chain(const Payload &payload);
+    // A copy of ps5-autoloader's list and its files on a USB drive, to start from when the list in
+    // /data breaks the chain.
+    void make_recovery_usb();
     // Takes every line naming file out of the list; the file stays.
     void remove_from_chain(const std::string &file);
     // Starts the pldmgr this app carries: its own front-end off in its config, then the ELF loader.

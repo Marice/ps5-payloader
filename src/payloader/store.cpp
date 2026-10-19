@@ -638,6 +638,29 @@ void Store::add_to_chain(const Payload &payload)
         });
 }
 
+void Store::make_recovery_usb()
+{
+    mark_busy("recovery", true);
+    worker_.queue(
+        [this]
+        {
+            const Chain chain = detect_chain(root_);
+            std::string usb;
+            const std::string error =
+                chain.kind == ChainKind::autoloader
+                    ? payloader::make_recovery_usb(root_, chain.directory, today(), usb)
+                    : "ps5-autoloader's list is not found";
+            Notice n;
+            n.failed = !error.empty();
+            n.title = error.empty() ? "Recovery USB ready on " + usb : "No recovery USB made";
+            n.detail = error.empty() ? "Take the stick out now. While it is in, the autoloader "
+                                       "starts this copy instead of the list in /data."
+                                     : error;
+            notice(std::move(n));
+            mark_busy("recovery", false);
+        });
+}
+
 void Store::remove_from_chain(const std::string &file)
 {
     worker_.queue(
@@ -772,7 +795,8 @@ void Store::start_pldmgr()
             }
             Notice n;
             n.failed = !error.empty();
-            n.title = error.empty() ? "pldmgr " + bundled.version + " started" : "pldmgr did not start";
+            n.title =
+                error.empty() ? "pldmgr " + bundled.version + " started" : "pldmgr did not start";
             n.detail = error;
             notice(std::move(n));
             {

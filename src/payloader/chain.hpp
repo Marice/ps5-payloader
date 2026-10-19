@@ -65,6 +65,13 @@ std::string copy_into_chain(const std::string &root, const std::string &director
                             const std::string &source, const std::string &name,
                             bool replace = false);
 
+// Copies the list in directory and the files it names (next to it) to <usb>/ps5_autoloader on the
+// first USB drive the app can write (/mnt/usb0 to /mnt/usb7). Entries with a full path stay as they
+// are. A list already on the drive is kept as autoload.txt.bak-payloader-<date> first. Sets usb to
+// the drive used. Returns an error, or "".
+std::string make_recovery_usb(const std::string &root, const std::string &directory,
+                              const std::string &date, std::string &usb);
+
 // "20261019" for today, local time.
 std::string today();
 
