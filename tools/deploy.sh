@@ -202,7 +202,7 @@ def remove_if_present(ftp, path):
         return True
     except error_perm as error:
         text = str(error).lower()
-        if reply_code(error) == "550" and ("no such" in text or "not found" in text):
+        if reply_code(error) == "550" and ("no such" in text or "not found" in text or "unavailable" in text):
             return False
         raise
 
