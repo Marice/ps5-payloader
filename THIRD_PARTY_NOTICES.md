@@ -135,10 +135,11 @@ carry matching SPDX identifiers.
 ## Presentation assets
 
 `sce_sys/icon0.png`, `sce_sys/pic0.dds` (shown while the title is selected) and
-`sce_sys/pic1.dds` (shown while it starts) are PayLoader's own artwork, drawn
-with the project's own renderer: `HUI_ICON=<file>` and
-`PAYLOADER_BACKGROUND=<file>` with `tools/host-snapshots.sh` render them
-(`host/snapshot_main.cpp`); `art/` holds the pictures they were made from.
+`sce_sys/pic1.dds` (shown while it starts) are PayLoader's own artwork, made
+for it by its owner; `art/` holds the pictures they were made from.
+`HUI_ICON=<file>` and `PAYLOADER_BACKGROUND=<file>` with
+`tools/host-snapshots.sh` still render a plain icon and background with the
+project's own renderer (`host/snapshot_main.cpp`).
 PayLoader has no music: the kit's `sce_sys/snd0.at9` and
 `assets/audio/music/*.ogg` are its author's own tracks and were removed, so the
 title is silent on the home screen and plays no background music. The
