@@ -4,7 +4,10 @@ A PS5 homebrew app (PPSA67670) that lets you manage your payloads with the contr
 front-end for [Payload Manager](https://github.com/itsPLK/ps5-payload-manager) (pldmgr) by itsPLK. pldmgr does the
 work and keeps every setting; PayLoader shows it as a console app, so you do not need a browser.
 
-**Status:** not yet tested on a console. The screens below show made-up preview data.
+**Status:** first release. Tested on one PS5 Pro (firmware 13.60, Y2JB with ps5-autoloader): the Payloads,
+Repository and Autoload screens, editing the boot list, installing the Signal suite and making a recovery copy on a
+USB stick. Not yet confirmed on a console: starting pldmgr from PayLoader, and switching the chain between the
+console and the USB stick. The screens below show made-up preview data.
 
 ![The Payloads screen](docs/media/payloader/payloads.png)
 
@@ -50,7 +53,8 @@ There are two ways a console starts payloads after the exploit, and PayLoader sh
 
 - **ps5-autoloader's list.** itsPLK's autoloader looks for `ps5_autoloader/autoload.txt` on a USB drive
   (`/mnt/usb0` to `/mnt/usb7`) first, then in `/data`; folders for single apps (`ps5_autoloader_<TITLE_ID>`) come
-  first. When it finds one, it starts the files it names, one per line, with `!<ms>` waits. PayLoader then edits that
+  first. PayLoader cannot tell which app the autoloader runs under, so it edits the general folder and names any
+  folders for single apps; it uses one of those only when there is no general list. When it finds one, it starts the files it names, one per line, with `!<ms>` waits. PayLoader then edits that
   file directly, also when pldmgr does not run. Before the first change of a day it keeps the list as
   `autoload.txt.bak-payloader-<date>` next to it. A payload installed in pldmgr is copied into the folder when you add
   it; removing an entry keeps the file. When the list starts pldmgr too, the screen also says what pldmgr's own list
@@ -60,6 +64,20 @@ There are two ways a console starts payloads after the exploit, and PayLoader sh
 
 Changes take effect the next time the console starts. The app needs etaHEN's "Allow /data in sandbox" to read
 `/data`.
+
+### A USB stick as a safety net
+
+**Make a recovery USB** (Autoload screen) copies the list and the payloads next to it to `ps5_autoloader/` on the
+USB stick that is plugged in, **switched off**: the file is named `autoload.txt_disabled`, which the autoloader
+ignores, so the stick can stay in. Payloads that pldmgr keeps are named by their full path and not copied.
+
+When a stick with such a folder is plugged in, the Autoload screen shows **Start the chain from: Console / USB
+stick**. Switching renames the file on the stick (`autoload.txt_disabled` <-> `autoload.txt`); the autoloader looks
+on USB first, so a switched-on stick takes over from the next start. PayLoader always edits the list in use.
+
+**In an emergency**, when the chain no longer starts and PayLoader cannot be reached: put the stick in a PC and
+rename `ps5_autoloader/autoload.txt_disabled` to `autoload.txt`. The console then starts the stick's list. Fix the
+console's list in PayLoader, then switch back to the console.
 
 ## How it works
 

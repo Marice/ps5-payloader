@@ -79,15 +79,17 @@ Chain detect_chain(const std::string &root)
     }
 
     // ps5-unified-autoloader's order (its find_autoload_config): the title folders on USB, the
-    // title folder in /data, the general folder on USB, the general folder in /data. Which title it
-    // runs under this app cannot know: a title folder counts when it is the only one at its place.
+    // title folder in /data, the general folder on USB, the general folder in /data. A title folder
+    // applies only to the app the autoloader runs under, which this app cannot know, so the general
+    // folders come first here; a title folder counts only when there is no general list, and is
+    // the only one at its place.
     std::vector<std::pair<std::string, bool>> steps; // place, title folders (else the general one)
-    for (const std::string &usb : usbs)
-        steps.emplace_back(usb, true);
-    steps.emplace_back("/data", true);
     for (const std::string &usb : usbs)
         steps.emplace_back(usb, false);
     steps.emplace_back("/data", false);
+    for (const std::string &usb : usbs)
+        steps.emplace_back(usb, true);
+    steps.emplace_back("/data", true);
     for (const auto &[place, titled] : steps)
     {
         std::vector<std::string> titles;

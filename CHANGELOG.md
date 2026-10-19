@@ -3,7 +3,9 @@
 All notable changes to PayLoader are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are the app's content version.
 
-## [Unreleased]
+## [v00.001.000] - 2026-10-19
+
+First release.
 
 ### Added
 
@@ -25,3 +27,7 @@ All notable changes to PayLoader are recorded here. The format follows
   go, recommends it when ps5-homeassistant is installed alone, and offers to start it with the console.
 - PayLoader brings pldmgr: when it does not run, X starts the bundled copy through the ELF loader. pldmgr's own
   icon and browser start are switched off; PayLoader is its front-end.
+- Autoload screen: waits on a slider (0.5 to 25 seconds, steps of 0.5). Entries that pldmgr keeps are named by
+  their full path; comments and directives in the list (`#`, `@sync`) are kept.
+- A recovery copy of the boot list on a USB stick, stored switched off (`autoload.txt_disabled`), and a switch
+  between the console's list and the stick's.
