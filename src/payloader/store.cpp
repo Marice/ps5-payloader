@@ -661,6 +661,29 @@ void Store::make_recovery_usb()
         });
 }
 
+void Store::switch_usb_list(bool on)
+{
+    worker_.queue(
+        [this, on]
+        {
+            const Chain chain = detect_chain(root_);
+            const std::string error = chain.usb_drive.empty()
+                                          ? "No USB stick with the autoloader's list"
+                                          : payloader::switch_usb_list(root_, chain.usb_drive, on);
+            Notice n;
+            n.failed = !error.empty();
+            n.title = !error.empty() ? "Not switched"
+                      : on           ? "The chain starts from the USB stick"
+                                     : "The chain starts from the console";
+            n.detail = !error.empty() ? error
+                       : on           ? "From the next start. Switch back here when the console's "
+                                        "list works again."
+                            : "From the next start; the stick's list is kept, switched off.";
+            notice(std::move(n));
+            read_chain();
+        });
+}
+
 void Store::remove_from_chain(const std::string &file)
 {
     worker_.queue(

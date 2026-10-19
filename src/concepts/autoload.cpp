@@ -46,6 +46,7 @@ enum Row
     kEmpty,
     kChainInfo,
     kRecovery,
+    kSource,
     kPldmgrList,
     kFirstEntry = 100, // + the entry's index
 };
@@ -61,6 +62,13 @@ enum MenuTag
 
 // Dialog purposes.
 constexpr int kConfirmRecovery = 1;
+constexpr int kConfirmSource = 2;
+
+// What to do when nothing starts any more, said wherever the stick comes up.
+constexpr const char *kEmergency =
+    "In an emergency, when the chain no longer starts and PayLoader cannot be reached: put the "
+    "stick in a PC and rename ps5_autoloader/autoload.txt_disabled to autoload.txt. The console "
+    "then starts the stick's list.";
 
 constexpr float kWaitMin = 0.5f; // seconds, the wait sliders' range and step
 constexpr float kWaitMax = 25.0f;
@@ -156,6 +164,13 @@ class AutoloadScreen final : public Screen
     {
         return "What starts with the console, in which order";
     }
+
+    void update(const InputFrame &input, float dt, app::Feedback &feedback) override
+    {
+        Screen::update(input, dt, feedback);
+        if (ask_source_)
+            ask_source(feedback);
+    }
     bool usable(const View &view) const override
     {
         return view.link == hui::payloader::Link::ready || file_chain(view);
@@ -246,13 +261,12 @@ class AutoloadScreen final : public Screen
             ask(kConfirmRecovery,
                 {ui::StatusKind::info,
                  "Make a recovery USB?",
-                 "PayLoader copies this list and the payloads next to it to ps5_autoloader on the "
-                 "USB "
-                 "stick that is plugged in. The autoloader looks on USB first: when a change "
-                 "breaks "
-                 "the chain, plug the stick in and start the exploit, then fix the list here and "
-                 "take "
-                 "the stick out again.",
+                 std::string("PayLoader copies this list and the payloads next to it to "
+                             "ps5_autoloader on the USB stick that is plugged in, switched off "
+                             "(autoload.txt_disabled), so the stick can stay in. When a change "
+                             "breaks the chain, switch to the stick here (\"Start the chain "
+                             "from\"). ") +
+                     kEmergency,
                  {{"Cancel"}, {"Make it", ui::ButtonKind::primary}},
                  1},
                 feedback);
@@ -293,6 +307,12 @@ class AutoloadScreen final : public Screen
 
     void changed(int id) override
     {
+        if (id == kSource)
+        {
+            source_on_ = form_.choice_index(kSource) == 1;
+            ask_source_ = true; // the dialog opens from show(), which has the feedback
+            return;
+        }
         if (id == kEnabled)
         {
             enabled_ = form_.toggle_value(kEnabled);
@@ -321,6 +341,39 @@ class AutoloadScreen final : public Screen
     {
         if (purpose == kConfirmRecovery && choice == 1)
             hui::payloader::store().make_recovery_usb();
+        if (purpose == kConfirmSource)
+        {
+            if (choice == 1)
+                hui::payloader::store().switch_usb_list(source_on_);
+            else
+                form_.set_choice(kSource, source_on_ ? 0 : 1); // back to how it is
+        }
+    }
+
+    // The source choice moved: ask before the file on the stick is renamed.
+    void ask_source(app::Feedback &feedback)
+    {
+        ask_source_ = false;
+        ask(kConfirmSource,
+            source_on_
+                ? ui::DialogContent{ui::StatusKind::warning,
+                                    "Start from the USB stick?",
+                                    std::string("From the next start the console runs the stick's "
+                                                "list instead of its own. PayLoader then edits the "
+                                                "stick's list. Switch back here once the console's "
+                                                "list works again. ") +
+                                        kEmergency,
+                                    {{"Cancel"}, {"Use the stick", ui::ButtonKind::primary}},
+                                    0}
+                : ui::DialogContent{ui::StatusKind::info,
+                                    "Start from the console again?",
+                                    "The stick's list is switched off (renamed to "
+                                    "autoload.txt_disabled) and stays on the stick, ready for "
+                                    "another time. The console runs its own list from the next "
+                                    "start.",
+                                    {{"Cancel"}, {"Use the console", ui::ButtonKind::primary}},
+                                    1},
+            feedback);
     }
 
     void menu_chosen(int tag, app::Feedback & /*feedback*/) override
@@ -448,7 +501,8 @@ class AutoloadScreen final : public Screen
         const bool editing = settle_waits();
         if (!pending_ && !editing)
             list_ = view.chain_list.entries;
-        std::string signature = "F" + view.chain.directory + "|";
+        std::string signature = "F" + view.chain.directory + view.chain.usb_drive +
+                                (view.chain.usb_on ? "+" : "-") + "|";
         for (const AutoloadEntry &e : list_)
             signature += (e.wait ? std::string("!") : e.target) + ",";
         for (const std::string &f : files_)
@@ -469,8 +523,17 @@ class AutoloadScreen final : public Screen
     {
         begin_rebuild();
         form_.add_header("After the exploit");
+        if (!view.chain.usb_drive.empty())
+        {
+            ui::FormRow &source =
+                form_.add_choice(kSource, "Start the chain from", {"Console", "USB stick"},
+                                 view.chain.usb_on ? 1 : 0);
+            source.description =
+                "Which list the autoloader uses: the console's, or the copy on the "
+                "USB stick (it looks on USB first)";
+        }
         ui::FormRow &where = form_.add_value(kChainInfo, "ps5-autoloader", view.chain.directory);
-        where.description = "The list the autoloader finds first; it starts these in order";
+        where.description = "The list in use; PayLoader edits this one";
         form_.add_header("In this order");
         if (list_.empty())
             form_.add_value(kEmpty, "The list is empty", "");
@@ -548,6 +611,8 @@ class AutoloadScreen final : public Screen
                     "edits the general one.";
         if (!now.chain.also_pldmgr)
             text += " pldmgr's own list is not used on this console.";
+        if (!now.chain.usb_drive.empty())
+            text += std::string(" ") + kEmergency;
         paragraph(paint, text, x, y, 22.0f, width, look.text_muted);
     }
 
@@ -778,6 +843,8 @@ class AutoloadScreen final : public Screen
     bool enabled_ = false;
     bool pending_ = false;
     bool file_mode_ = false;
+    bool ask_source_ = false;
+    bool source_on_ = false;
 };
 
 } // namespace

@@ -138,6 +138,8 @@ class Store
     // A copy of ps5-autoloader's list and its files on a USB drive, to start from when the list in
     // /data breaks the chain.
     void make_recovery_usb();
+    // Switches the USB stick's list on or off (renames autoload.txt <-> autoload.txt_disabled).
+    void switch_usb_list(bool on);
     // Takes every line naming file out of the list; the file stays.
     void remove_from_chain(const std::string &file);
     // Starts the pldmgr this app carries: its own front-end off in its config, then the ELF loader.

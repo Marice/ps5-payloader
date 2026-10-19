@@ -37,9 +37,17 @@ struct Chain
     std::vector<std::string> title_folders; // ps5_autoloader_<TITLE_ID> folders that have a list
     bool also_pldmgr = false;               // the list starts pldmgr too
     bool usb_list = false;                  // the list in use is on a USB drive
+    // The first USB stick with ps5_autoloader/autoload.txt (on) or autoload.txt_disabled (off).
+    std::string usb_drive; // "/mnt/usb0", "" when none
+    bool usb_on = false;
+    bool usb_off = false;
 };
 
 Chain detect_chain(const std::string &root = {});
+
+// Switches the stick's list on (autoload.txt_disabled -> autoload.txt) or off (the other way).
+// Refused when both names are there. Returns an error, or "".
+std::string switch_usb_list(const std::string &root, const std::string &usb, bool on);
 
 struct AutoloaderList
 {
@@ -66,8 +74,10 @@ std::string copy_into_chain(const std::string &root, const std::string &director
                             bool replace = false);
 
 // Copies the list in directory and the files it names (next to it) to <usb>/ps5_autoloader on the
-// first USB drive the app can write (/mnt/usb0 to /mnt/usb7). Entries with a full path stay as they
-// are. A list already on the drive is kept as autoload.txt.bak-payloader-<date> first. Sets usb to
+// first USB drive the app can write (/mnt/usb0 to /mnt/usb7), as autoload.txt_disabled: switched
+// off, so the stick can stay in. Entries with a full path stay as they are. A switched-off list
+// already there is kept as autoload.txt_disabled.bak-payloader-<date> first; a switched-on one is
+// not replaced. Sets usb to
 // the drive used. Returns an error, or "".
 std::string make_recovery_usb(const std::string &root, const std::string &directory,
                               const std::string &date, std::string &usb);

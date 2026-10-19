@@ -19,6 +19,7 @@ namespace
 {
 
 constexpr const char *kGeneric = "ps5_autoloader";
+constexpr const char *kDisabledName = "autoload.txt_disabled";
 constexpr std::size_t kMaxList = 64 * 1024;
 constexpr std::size_t kMaxPayloadFile = 64u << 20;
 
@@ -56,23 +57,53 @@ void lists_at(const std::string &root, const std::string &place, std::vector<std
 Chain detect_chain(const std::string &root)
 {
     Chain chain;
-    std::vector<std::string> places;
+    std::vector<std::string> usbs;
     for (int i = 0; i < 8; ++i)
-        places.push_back("/mnt/usb" + std::to_string(i));
-    places.push_back("/data");
-    for (const std::string &place : places)
+        usbs.push_back("/mnt/usb" + std::to_string(i));
+
+    // A USB stick with the autoloader's list, switched on (autoload.txt) or off
+    // (autoload.txt_disabled).
+    for (const std::string &usb : usbs)
+    {
+        const std::string folder = usb + "/" + kGeneric;
+        const bool on = has_list(root, folder);
+        std::string off_text;
+        const bool off = save::read_file(root + folder + "/" + kDisabledName, &off_text, kMaxList);
+        if (on || off)
+        {
+            chain.usb_drive = usb;
+            chain.usb_on = on;
+            chain.usb_off = off;
+            break;
+        }
+    }
+
+    // ps5-unified-autoloader's order (its find_autoload_config): the title folders on USB, the
+    // title folder in /data, the general folder on USB, the general folder in /data. Which title it
+    // runs under this app cannot know: a title folder counts when it is the only one at its place.
+    std::vector<std::pair<std::string, bool>> steps; // place, title folders (else the general one)
+    for (const std::string &usb : usbs)
+        steps.emplace_back(usb, true);
+    steps.emplace_back("/data", true);
+    for (const std::string &usb : usbs)
+        steps.emplace_back(usb, false);
+    steps.emplace_back("/data", false);
+    for (const auto &[place, titled] : steps)
     {
         std::vector<std::string> titles;
         bool generic = false;
         lists_at(root, place, titles, generic);
-        if (titles.empty() && !generic)
+        chain.title_folders.insert(chain.title_folders.end(), titles.begin(), titles.end());
+        std::string directory;
+        if (titled && titles.size() == 1)
+            directory = titles.front();
+        else if (!titled && generic)
+            directory = place + "/" + kGeneric;
+        if (directory.empty())
             continue;
         chain.kind = ChainKind::autoloader;
-        chain.title_folders = titles;
+        chain.directory = directory;
         chain.usb_list = place != "/data";
-        // Which title folder applies depends on the app the autoloader runs in, which this app
-        // cannot know: with one title folder and no generic one that is the list; else the generic.
-        chain.directory = generic || titles.size() != 1 ? place + "/" + kGeneric : titles.front();
         AutoloaderList list;
         if (read_autoloader(root, chain.directory, list))
             for (const AutoloadEntry &entry : list.entries)
@@ -83,6 +114,20 @@ Chain detect_chain(const std::string &root)
     // Nothing found: /data readable means there is no list; unreadable means the app may not look.
     chain.kind = save::list_files(root + "/data").empty() ? ChainKind::unknown : ChainKind::pldmgr;
     return chain;
+}
+
+std::string switch_usb_list(const std::string &root, const std::string &usb, bool on)
+{
+    const std::string folder = root + usb + "/" + kGeneric;
+    const std::string from = folder + "/" + (on ? kDisabledName : "autoload.txt");
+    const std::string to = folder + "/" + (on ? "autoload.txt" : kDisabledName);
+    std::string there;
+    if (save::read_file(to, &there, kMaxList))
+        return std::string("The stick has both autoload.txt and ") + kDisabledName +
+               ": rename or remove one on a PC first";
+    if (::rename(from.c_str(), to.c_str()) != 0)
+        return "The file on the USB stick could not be renamed";
+    return {};
 }
 
 bool read_autoloader(const std::string &root, const std::string &directory, AutoloaderList &out)
@@ -192,10 +237,15 @@ std::string make_recovery_usb(const std::string &root, const std::string &direct
     const std::string target = root + drive + "/" + kGeneric;
     std::string existing;
     if (save::read_file(target + "/autoload.txt", &existing, kMaxList))
+        return "The stick's list is switched on: switch it off first, so the copy cannot replace "
+               "it";
+    if (save::read_file(target + "/" + kDisabledName, &existing, kMaxList))
     {
         std::string kept;
-        if (!save::read_file(target + "/autoload.txt.bak-payloader-" + date, &kept, kMaxList) &&
-            !save::write_atomic(target + "/autoload.txt.bak-payloader-" + date, existing).empty())
+        if (!save::read_file(target + "/" + kDisabledName + ".bak-payloader-" + date, &kept,
+                             kMaxList) &&
+            !save::write_atomic(target + "/" + kDisabledName + ".bak-payloader-" + date, existing)
+                 .empty())
             return "The list on the USB drive could not be backed up";
     }
     for (const AutoloadEntry &entry : list.entries)
@@ -209,8 +259,10 @@ std::string make_recovery_usb(const std::string &root, const std::string &direct
         if (!save::write_atomic(target + "/" + entry.target, data).empty())
             return entry.target + " could not be copied to the USB drive";
     }
-    if (!save::write_atomic(target + "/autoload.txt", list.text).empty())
-        return "autoload.txt could not be written to the USB drive";
+    // Stored switched off: the stick can stay in. Switch it on in PayLoader, or rename the file to
+    // autoload.txt on a PC, when the chain in /data no longer starts.
+    if (!save::write_atomic(target + "/" + kDisabledName, list.text).empty())
+        return "The list could not be written to the USB drive";
     usb = drive;
     return {};
 }
