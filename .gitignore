@@ -26,3 +26,5 @@ dist/
 # PayLoader: the build container's home and the local decision log
 .home/
 /docs/decision-log.md
+# Windows download markers
+*:Zone.Identifier

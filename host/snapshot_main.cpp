@@ -194,53 +194,84 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // HUI_ICON=<file.png>: draw the 512x512 launcher icon with the kit and stop.
-    if (const char *icon_path = std::getenv("HUI_ICON"))
+    // HUI_ICON=<file.png>: draw PayLoader's 512x512 launcher icon with the kit and stop.
+    // PAYLOADER_BACKGROUND=<file.png>: the same art at 1920x1080, for pic0 and pic1.
+    const char *icon_path = std::getenv("HUI_ICON");
+    const char *background_path = std::getenv("PAYLOADER_BACKGROUND");
+    if (icon_path != nullptr || background_path != nullptr)
     {
-        constexpr int kIcon = 512;
+        const bool icon = icon_path != nullptr;
+        const int art_w = icon ? 512 : 1920;
+        const int art_h = icon ? 512 : 1080;
         GLuint target = 0;
         GLuint storage = 0;
         glGenFramebuffers(1, &target);
         glGenRenderbuffers(1, &storage);
         glBindRenderbuffer(GL_RENDERBUFFER, storage);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, kIcon, kIcon);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, art_w, art_h);
         glBindFramebuffer(GL_FRAMEBUFFER, target);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, storage);
         using hui::gfx::Color;
+        // Candy's pastel bokeh, the app's own theme.
         hui::gfx::BackdropSpec spec;
-        spec.mode = hui::gfx::BackdropMode::aurora;
-        spec.colors[0] = Color::rgb(0x0b0e20);
-        spec.colors[1] = Color::rgb(0x1b1450);
-        spec.colors[2] = Color::rgb(0x3b6cff);
-        spec.colors[3] = Color::rgb(0x7cf0c8);
+        spec.mode = hui::gfx::BackdropMode::bokeh;
+        spec.colors[0] = Color::rgb(0xffe3f0);
+        spec.colors[1] = Color::rgb(0xe6f0ff);
+        spec.colors[2] = Color::rgb(0xffb3d1);
+        spec.colors[3] = Color::rgb(0x9fdcff);
         spec.time = 42.0f;
+        const Color ink = Color::rgb(0x5a3a5f);
+        const Color pink = Color::rgb(0xff6fae);
+        const Color blue = Color::rgb(0x57c8ff);
         hui::gfx::DrawList list;
-        // Three cards fanned out, the front one focused: the app in one glance.
-        list.rotated_rect({118, 150, 230, 150}, 26, -0.28f, Color::rgb(0xffffff, 0.16f));
-        list.rotated_rect({150, 136, 230, 150}, 26, -0.12f, Color::rgb(0xffffff, 0.3f));
-        list.shadow({170, 150, 250, 160}, 30, 40, Color::rgb(0x000000, 0.5f));
-        list.glow({166, 128, 250, 160}, 30, 26, Color::rgb(0x7cf0c8, 0.55f));
-        list.gradient_rect({166, 128, 250, 160}, 30, Color::rgb(0xf4f7ff), Color::rgb(0xcfd8ff));
-        list.bordered_rect({160, 122, 262, 172}, 34, Color::rgb(0x000000, 0.0f), 5,
-                           Color::rgb(0x7cf0c8));
-        list.rounded_rect({196, 164, 96, 18}, 9, Color::rgb(0x1b1450));
-        list.rounded_rect({196, 198, 160, 12}, 6, Color::rgb(0x1b1450, 0.45f));
-        list.rounded_rect({196, 222, 124, 12}, 6, Color::rgb(0x1b1450, 0.45f));
-        list.arc(366, 176, 30, 9, 0.0f, 4.4f, Color::rgb(0x3b6cff));
-        hui::ui::text(list, fonts.display, "UI Lab", 256, 402, 82, Color::rgb(0xffffff),
-                      hui::gfx::Align::center);
-        hui::ui::text(list, fonts.semibold, "HOMEBREW", 256, 446, 24, Color::rgb(0x7cf0c8),
-                      hui::gfx::Align::center, 9.0f);
+        // Three payload cards, fanned; a round pink button with an arrow drops into them.
+        const float s = icon ? 1.0f : 1.35f;
+        const float cx = icon ? 256.0f : 960.0f;
+        const float cy = icon ? 214.0f : 430.0f;
+        const auto card = [&](float dx, float dy, float angle, Color fill)
+        {
+            const hui::gfx::Rect r{cx - 150 * s + dx * s, cy - 10 * s + dy * s, 300 * s, 120 * s};
+            list.shadow(r, 34 * s, 30 * s, Color::rgb(0xff7fb6, 0.35f));
+            list.rotated_rect(r, 34 * s, angle, fill);
+        };
+        card(-34, 34, -0.16f, Color::rgb(0xd9ecff));
+        card(34, 30, 0.14f, Color::rgb(0xffd3e6));
+        card(0, 18, 0.0f, Color::rgb(0xffffff));
+        list.rounded_rect({cx - 112 * s, cy + 46 * s, 120 * s, 16 * s}, 8 * s, ink.with_alpha(0.8f));
+        list.rounded_rect({cx - 112 * s, cy + 78 * s, 180 * s, 12 * s}, 6 * s, ink.with_alpha(0.3f));
+        list.circle(cx + 96 * s, cy + 66 * s, 9 * s, blue);
+        const float bx = cx;
+        const float by = cy - 64 * s;
+        list.glow({bx - 70 * s, by - 70 * s, 140 * s, 140 * s}, 70 * s, 26 * s, pink.with_alpha(0.5f));
+        list.circle(bx, by, 70 * s, pink);
+        list.rounded_rect({bx - 10 * s, by - 40 * s, 20 * s, 58 * s}, 10 * s, Color::rgb(0xffffff));
+        list.line(bx - 30 * s, by + 4 * s, bx, by + 34 * s, 20 * s, Color::rgb(0xffffff));
+        list.line(bx + 30 * s, by + 4 * s, bx, by + 34 * s, 20 * s, Color::rgb(0xffffff));
+        list.circle(bx, by + 32 * s, 10 * s, Color::rgb(0xffffff));
+        if (icon)
+        {
+            hui::ui::text(list, fonts.display, "PayLoader", 256, 452, 74, ink,
+                          hui::gfx::Align::center);
+        }
+        else
+        {
+            hui::ui::text(list, fonts.display, "PayLoader", 960, 800, 120, ink,
+                          hui::gfx::Align::center);
+            hui::ui::text(list, fonts.semibold, "PAYLOADS FROM YOUR CONTROLLER", 960, 870, 30,
+                          pink, hui::gfx::Align::center, 8.0f);
+        }
         renderer.begin();
         renderer.backdrop(spec);
         renderer.draw(list);
-        renderer.present(target, kIcon, kIcon, 512.0f, 512.0f);
-        std::vector<unsigned char> icon(static_cast<std::size_t>(kIcon * kIcon * 4));
-        glReadPixels(0, 0, kIcon, kIcon, GL_RGBA, GL_UNSIGNED_BYTE, icon.data());
-        for (std::size_t i = 3; i < icon.size(); i += 4)
-            icon[i] = 255;
+        renderer.present(target, art_w, art_h, static_cast<float>(art_w),
+                         static_cast<float>(art_h));
+        std::vector<unsigned char> art(static_cast<std::size_t>(art_w * art_h * 4));
+        glReadPixels(0, 0, art_w, art_h, GL_RGBA, GL_UNSIGNED_BYTE, art.data());
+        for (std::size_t i = 3; i < art.size(); i += 4)
+            art[i] = 255;
         stbi_flip_vertically_on_write(1);
-        return stbi_write_png(icon_path, kIcon, kIcon, 4, icon.data(), kIcon * 4) != 0 ? 0 : 1;
+        const char *path = icon ? icon_path : background_path;
+        return stbi_write_png(path, art_w, art_h, 4, art.data(), art_w * 4) != 0 ? 0 : 1;
     }
 
     GLuint framebuffer = 0;
