@@ -153,13 +153,14 @@ void draw_link_card(ui::Painter &paint, const Rect &r, const View &view)
     if (view.link == Link::offline && bundled.present)
     {
         paint.heading("pldmgr is not running", x, y, 38.0f, look.text);
-        y = paragraph(paint,
-                      "PayLoader works through Payload Manager (pldmgr) by itsPLK, and brings its own "
-                      "copy, version " +
-                          bundled.version +
-                          ". Press X to start it. pldmgr's own icon and browser start stay off: "
-                          "PayLoader is its front-end.",
-                      x, y + 56.0f, 25.0f, width, look.text_muted);
+        y = paragraph(
+            paint,
+            "PayLoader works through Payload Manager (pldmgr) by itsPLK, and brings its own "
+            "copy, version " +
+                bundled.version +
+                ". Press X to start it. pldmgr's own icon and browser start stay off: "
+                "PayLoader is its front-end.",
+            x, y + 56.0f, 25.0f, width, look.text_muted);
         paragraph(paint,
                   "pldmgr does not start with the console by itself; PayLoader asks again after a "
                   "restart. Once running, pldmgr keeps itself up to date (Repository screen).",

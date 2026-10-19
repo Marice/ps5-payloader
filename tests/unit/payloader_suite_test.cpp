@@ -1,6 +1,7 @@
 // PayLoader - Tests for the Signal suite: its order, its source, installing it and starting it.
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "payloader/launcher.hpp"
 #include "payloader/store.hpp"
 #include "payloader/suite.hpp"
 #include "unit/payloader_fake.hpp"
@@ -92,6 +93,9 @@ class SuiteStoreTest : public ::testing::Test
                   std::string(::testing::UnitTest::GetInstance()->current_test_info()->name())))
                     .string();
         fs::remove_all(root_);
+        fs::create_directories(root_ + "/app-data");
+        set_payloader_paths(root_ + "/assets",
+                            root_ + "/app-data"); // the front-end marker goes here
         fake_.reply("GET /version", 200, "0.6.1");
         fake_.reply(
             "GET /get_config", 200,
@@ -144,9 +148,11 @@ TEST_F(SuiteStoreTest, AddsTheSuiteSourceAndShowsExtraSources)
     ASSERT_TRUE(added.has_value());
     EXPECT_NE(added->target.find("ps5-signal-suite"), std::string::npos);
     EXPECT_EQ(fake_.last("POST", "/set_config")->body, R"({"MULTI_SOURCES_ENABLED":true})");
-    const std::vector<Notice> notices = store_->take_notices();
-    ASSERT_EQ(notices.size(), 1u);
-    EXPECT_EQ(notices[0].title, "Signal suite added to pldmgr");
+    // PayLoader also takes over pldmgr's front-end on connecting; the suite has its own notice.
+    bool told = false;
+    for (const Notice &n : store_->take_notices())
+        told = told || n.title == "Signal suite added to pldmgr";
+    EXPECT_TRUE(told);
 }
 
 TEST_F(SuiteStoreTest, InstallsTheSuiteInOrderAndThenAsks)
@@ -193,12 +199,15 @@ TEST_F(SuiteStoreTest, AddsTheSuiteToTheAutoloadersList)
     settle();
     store_->add_suite_to_chain();
     store_->wait_idle();
-    EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt"),
-              "etaHEN.elf\n!12000\nps5-exporter.elf\n!3000\nps5-homeassistant.elf\n!3000\nps5-"
-              "signal.elf\n");
-    EXPECT_EQ(read("/data/ps5_autoloader/ps5-signal.elf"),
-              "NEW ps5-signal"); // the newer build replaced it
-    EXPECT_EQ(read("/data/ps5_autoloader/ps5-exporter.elf"), "NEW ps5-exporter");
+    // pldmgr's folders are readable for pldmgr only: the list names their full path, and the
+    // signal copy that was listed already keeps its place and its file.
+    EXPECT_EQ(
+        read("/data/ps5_autoloader/autoload.txt"),
+        "etaHEN.elf\n!12000\n/data/pldmgr/payloads/repo/ps5-exporter@5u1t3000/ps5-exporter.elf\n"
+        "!3000\n/data/pldmgr/payloads/repo/ps5-homeassistant@5u1t3000/ps5-homeassistant.elf\n"
+        "!3000\nps5-signal.elf\n");
+    EXPECT_EQ(read("/data/ps5_autoloader/ps5-signal.elf"), "OLD SIGNAL");
+    EXPECT_FALSE(fs::exists(root_ + "/data/ps5_autoloader/ps5-exporter.elf"));
     EXPECT_TRUE(fs::exists(root_ + "/data/ps5_autoloader/autoload.txt.bak-payloader-" + today()));
 }
 

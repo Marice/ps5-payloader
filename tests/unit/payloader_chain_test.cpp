@@ -133,7 +133,7 @@ TEST_F(ChainTest, KeepsTheFirstListOfTheDay)
 TEST_F(ChainTest, RefusesNamesTheAutoloaderCannotRead)
 {
     write("/data/ps5_autoloader/autoload.txt", kRealList);
-    EXPECT_NE(write_autoloader(root_, "/data/ps5_autoloader", {AutoloadEntry::payload("a/b.elf")},
+    EXPECT_NE(write_autoloader(root_, "/data/ps5_autoloader", {AutoloadEntry::payload("a\tb.elf")},
                                "20261019"),
               "");
     EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt"), kRealList);

@@ -239,8 +239,9 @@ void Screen::draw(app::Frame &frame) const
         static constexpr ui::Hint kStart[] = {{ui::Button::cross, "Start pldmgr"}};
         const bool startable =
             now.link == Link::offline && hui::payloader::bundled_pldmgr().present;
-        draw_hints(frame.scene, context_.fonts, look, startable ? std::span<const ui::Hint>(kStart)
-                                                                : std::span<const ui::Hint>(kRetry));
+        draw_hints(frame.scene, context_.fonts, look,
+                   startable ? std::span<const ui::Hint>(kStart)
+                             : std::span<const ui::Hint>(kRetry));
     }
     frame.scene.pop_opacity();
     ui::Canvas above{frame.overlay, context_.fonts, 0, clock_};
