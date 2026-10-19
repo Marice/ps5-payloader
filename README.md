@@ -1,6 +1,6 @@
 # PayLoader
 
-A PS5 homebrew app (PPSA69428) that lets you manage your payloads with the controller, on the television. It is a
+A PS5 homebrew app (PPSA67670) that lets you manage your payloads with the controller, on the television. It is a
 front-end for [Payload Manager](https://github.com/itsPLK/ps5-payload-manager) (pldmgr) by itsPLK. pldmgr does the
 work and keeps every setting; PayLoader shows it as a console app, so you do not need a browser.
 
@@ -18,7 +18,7 @@ work and keeps every setting; PayLoader shows it as a console app, so you do not
 
 1. **Start pldmgr:** with your autoloader, or send `pldmgr.elf` to your ELF loader (etaHEN: port 9021).
 2. **Install PayLoader:** unzip the [release](https://github.com/Marice/ps5-payloader/releases/latest) and copy the
-   `PPSA69428` folder to `/data/homebrew/` on the console (FTP).
+   `PPSA67670` folder to `/data/homebrew/` on the console (FTP).
 3. **Open it.** **L1** and **R1** move between the screens; the **touchpad** explains the screen you are on.
 
 When pldmgr does not run, every screen says how to start it and checks again every 3 seconds.
@@ -86,7 +86,7 @@ The app is built on [ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-h
 ```bash
 docker build -t payloader-build docker/      # once
 docker/run.sh make test-unit                  # unit tests, sanitizers on
-docker/run.sh make                            # the app folder in dist/PPSA69428
+docker/run.sh make                            # the app folder in dist/PPSA67670
 docker/run.sh make lint                       # format, static analysis, metadata
 docker/run.sh tools/host-snapshots.sh build/snapshots all   # pictures of every screen
 ```
