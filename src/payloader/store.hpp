@@ -43,10 +43,10 @@ enum class Topic : unsigned char
 
 enum class Link : unsigned char
 {
-    checking,  // not asked yet
-    offline,   // nothing answers on 8084
-    too_old,   // pldmgr answers, but older than 0.6.0
-    unknown,   // something answers that is not pldmgr
+    checking, // not asked yet
+    offline,  // nothing answers on 8084
+    too_old,  // pldmgr answers, but older than 0.6.0
+    unknown,  // something answers that is not pldmgr
     ready,
 };
 

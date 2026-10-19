@@ -21,7 +21,8 @@ namespace hui::payloader
 {
 
 constexpr int kMaxWaitMs = 3600000;
-constexpr std::size_t kMaxAutoloadBytes = 4094; // one line per entry, plus the last line break, in 4096
+constexpr std::size_t kMaxAutoloadBytes =
+    4094; // one line per entry, plus the last line break, in 4096
 
 struct AutoloadEntry
 {

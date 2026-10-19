@@ -120,7 +120,7 @@ struct Process
 struct Config
 {
     bool autoload_enabled = false;
-    int autoload_delay = 5; // seconds before the list starts
+    int autoload_delay = 5;    // seconds before the list starts
     std::string autoload_list; // "local/a,!2000,repo/b@h"
     bool auto_browser_open = true;
     bool kill_disc_player = true;

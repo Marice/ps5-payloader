@@ -95,7 +95,8 @@ TEST(PayloaderHttp, RefusesIncompleteMalformedAndOversizedReplies)
 {
     Reply reply;
     EXPECT_FALSE(parse_reply("HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nshort", reply));
-    EXPECT_FALSE(parse_reply("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nab", reply));
+    EXPECT_FALSE(
+        parse_reply("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nab", reply));
     EXPECT_FALSE(parse_reply("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n", reply));
     EXPECT_FALSE(parse_reply("SSH-2.0-OpenSSH\r\n\r\n", reply));
     EXPECT_FALSE(parse_reply("HTTP/1.1 999 Odd\r\n\r\n", reply));
@@ -170,7 +171,8 @@ class OneShotServer
 
 TEST(PayloaderHttp, TalksToAServerOnLoopback)
 {
-    OneShotServer server("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nOK\r\n0\r\n\r\n");
+    OneShotServer server(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nOK\r\n0\r\n\r\n");
     Request request;
     request.method = "POST";
     request.target = "/loadpayload:local/ftpsrv";

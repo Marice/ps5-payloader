@@ -131,8 +131,8 @@ class RepositoryScreen final : public Screen
             if (row == nullptr)
                 continue;
             const bool busy = view.busy.count(busy_key(entry)) != 0;
-            const RepoStatus status = hui::payloader::repo_status(entry.payload, entry.source_url,
-                                                                  view.payloads);
+            const RepoStatus status =
+                hui::payloader::repo_status(entry.payload, entry.source_url, view.payloads);
             row->text = busy ? std::string("Installing") : status_text(entry.payload, status);
             form_.set_disabled(entry.id, busy);
         }
@@ -158,10 +158,10 @@ class RepositoryScreen final : public Screen
                 {ui::StatusKind::info, name + " is installed",
                  status.self ? "This is pldmgr itself, and it is up to date."
                              : "Download and install this version again?",
-                 status.self ? std::vector<ui::DialogButton>{{"OK"}}
-                             : std::vector<ui::DialogButton>{{"Cancel"},
-                                                             {"Install again",
-                                                              ui::ButtonKind::primary}},
+                 status.self
+                     ? std::vector<ui::DialogButton>{{"OK"}}
+                     : std::vector<ui::DialogButton>{{"Cancel"},
+                                                     {"Install again", ui::ButtonKind::primary}},
                  0},
                 feedback);
             return;
@@ -205,8 +205,7 @@ class RepositoryScreen final : public Screen
             return;
         }
         const RepoPayload &p = entry->payload;
-        const RepoStatus status =
-            hui::payloader::repo_status(p, entry->source_url, now.payloads);
+        const RepoStatus status = hui::payloader::repo_status(p, entry->source_url, now.payloads);
         paint.label(p.category.empty() ? "PAYLOAD" : p.category, x, y, 19.0f, look.text_muted);
         y += 62.0f;
         paint.heading(display_name(p), x, y, 40.0f, look.text);
@@ -230,8 +229,7 @@ class RepositoryScreen final : public Screen
         }
         else if (status.conflict != nullptr)
         {
-            paint.body("Installed from " + status.conflict->source_name, x, y, 23.0f,
-                       look.primary);
+            paint.body("Installed from " + status.conflict->source_name, x, y, 23.0f, look.primary);
             y += 44.0f;
         }
         if (!p.description.empty())

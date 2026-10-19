@@ -216,7 +216,8 @@ class PayloadsScreen final : public Screen
         case kDelete:
             pending_delete_ = p->slot;
             ask(kConfirmDelete,
-                {ui::StatusKind::danger, "Delete " + p->title() + "?",
+                {ui::StatusKind::danger,
+                 "Delete " + p->title() + "?",
                  "pldmgr removes the file from the console. A payload from a repository can be "
                  "installed again.",
                  {{"Cancel"}, {"Delete", ui::ButtonKind::primary, true}},
@@ -394,8 +395,7 @@ class PayloadsScreen final : public Screen
             hui::payloader::parse_autoload_list(now.config.autoload_list);
         const bool listed = hui::payloader::autoload_contains(list, p.slot);
         if (listed)
-            list.erase(std::remove_if(list.begin(), list.end(),
-                                      [&](const AutoloadEntry &e)
+            list.erase(std::remove_if(list.begin(), list.end(), [&](const AutoloadEntry &e)
                                       { return !e.wait && e.target == p.slot; }),
                        list.end());
         else

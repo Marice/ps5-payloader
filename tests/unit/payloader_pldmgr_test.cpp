@@ -1,5 +1,5 @@
-// PayLoader - Tests for pldmgr's replies, the calls PayLoader makes, repository status and the store.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// PayLoader - Tests for pldmgr's replies, the calls PayLoader makes, repository status and the
+// store. SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "payloader/pldmgr.hpp"
 #include "payloader/repo_status.hpp"
@@ -217,8 +217,8 @@ TEST(PayloaderCalls, InstallsWithTheSourceAndMode)
     RepoPayload payload;
     payload.name = "PS5 FTP-Server";
     InstallResult result;
-    ASSERT_TRUE(api.install(payload, "https://a.b/p.json", InstallMode::replace, "repo/x@1", result)
-                    .ok);
+    ASSERT_TRUE(
+        api.install(payload, "https://a.b/p.json", InstallMode::replace, "repo/x@1", result).ok);
     EXPECT_EQ(fake.last("POST", "/repository_install")->target,
               "/repository_install?id=ps5-ftp-server&source_url=https%3A%2F%2Fa.b%2Fp.json"
               "&mode=replace&replace_slot=repo%2Fx%401");
@@ -228,8 +228,9 @@ TEST(PayloaderCalls, InstallsWithTheSourceAndMode)
 TEST(PayloaderCalls, ReportsAnInstallConflictAsAnAnswer)
 {
     FakePldmgr fake;
-    fake.reply("POST /repository_install", 200,
-               R"({"ok":false,"conflict":{"slot":"repo/x@aa","source_name":"Other","version":"1"}})");
+    fake.reply(
+        "POST /repository_install", 200,
+        R"({"ok":false,"conflict":{"slot":"repo/x@aa","source_name":"Other","version":"1"}})");
     Pldmgr api(fake.transport());
     RepoPayload payload;
     payload.id = "x";
@@ -430,8 +431,9 @@ TEST_F(StoreTest, KeepsOtherFavouritesWhenAddingOne)
 
 TEST_F(StoreTest, PassesAnInstallConflictToTheScreen)
 {
-    fake_.reply("POST /repository_install", 200,
-                R"({"ok":false,"conflict":{"slot":"repo/x@aa","source_name":"Other","version":"1"}})");
+    fake_.reply(
+        "POST /repository_install", 200,
+        R"({"ok":false,"conflict":{"slot":"repo/x@aa","source_name":"Other","version":"1"}})");
     settle();
     RepoPayload payload;
     payload.id = "x";

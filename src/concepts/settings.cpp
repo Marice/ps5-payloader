@@ -161,7 +161,8 @@ class SettingsScreen final : public Screen
             pending_index_ = static_cast<int>(i);
             pending_name_ = sources_[i].name.empty() ? sources_[i].url : sources_[i].name;
             ask(kConfirmRemove,
-                {ui::StatusKind::warning, "Remove " + pending_name_ + "?",
+                {ui::StatusKind::warning,
+                 "Remove " + pending_name_ + "?",
                  "Its payloads no longer show on the Repository screen. Payloads you installed "
                  "from it stay.",
                  {{"Cancel"}, {"Remove", ui::ButtonKind::primary, true}},
@@ -264,8 +265,8 @@ class SettingsScreen final : public Screen
             .description = "pldmgr opens its web page when it starts; PayLoader does not need it";
         form_.add_toggle(kIcon, "pldmgr's home screen icon", view.config.auto_install_app)
             .description = "pldmgr adds a \"Payload Manager\" icon that opens its web page";
-        form_.add_toggle(kDiscPlayer, "Close the disc player at start",
-                         view.config.kill_disc_player)
+        form_
+            .add_toggle(kDiscPlayer, "Close the disc player at start", view.config.kill_disc_player)
             .description = "pldmgr closes the console's disc player app when it starts";
         form_.add_toggle(kUsb, "Look on USB drives", view.config.scan_usb).description =
             "Payloads on a USB drive show on the Payloads screen";

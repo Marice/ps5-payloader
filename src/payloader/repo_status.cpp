@@ -14,7 +14,8 @@ namespace hui::payloader
 namespace
 {
 
-constexpr std::string_view kOfficial = "https://itsplk.github.io/ps5-payloads-mirror/payloads_v2.json";
+constexpr std::string_view kOfficial =
+    "https://itsplk.github.io/ps5-payloads-mirror/payloads_v2.json";
 constexpr std::string_view kOfficialLegacy =
     "https://itsplk.github.io/ps5-payloads-mirror/payloads.json";
 
@@ -22,7 +23,8 @@ std::string_view normalize(std::string_view url)
 {
     while (!url.empty() && std::isspace(static_cast<unsigned char>(url.front())))
         url.remove_prefix(1);
-    while (!url.empty() && (std::isspace(static_cast<unsigned char>(url.back())) || url.back() == '/'))
+    while (!url.empty() &&
+           (std::isspace(static_cast<unsigned char>(url.back())) || url.back() == '/'))
         url.remove_suffix(1);
     return url;
 }

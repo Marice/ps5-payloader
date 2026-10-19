@@ -138,9 +138,9 @@ void Screen::update(const InputFrame &input, float dt, app::Feedback &feedback)
     if (!dialog_.is_open() && !conflicts_.empty())
     {
         const hui::payloader::Notice &next = conflicts_.front();
-        std::string body = "It is installed from " +
-                           (next.conflict_source.empty() ? std::string("another repository")
-                                                         : next.conflict_source);
+        std::string body = "It is installed from " + (next.conflict_source.empty()
+                                                          ? std::string("another repository")
+                                                          : next.conflict_source);
         if (!next.conflict_version.empty())
             body += " (version " + next.conflict_version + ")";
         body += ". Replace that one with this repository's?";
@@ -221,8 +221,8 @@ void Screen::ask(int purpose, ui::DialogContent content, app::Feedback &feedback
     dialog_.open(std::move(content), feedback);
 }
 
-void Screen::prompt(int purpose, const char *title, const char *placeholder,
-                    int max_length, app::Feedback &feedback)
+void Screen::prompt(int purpose, const char *title, const char *placeholder, int max_length,
+                    app::Feedback &feedback)
 {
     prompt_purpose_ = purpose;
     prompt_.style.max_length = max_length;

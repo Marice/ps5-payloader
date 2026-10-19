@@ -237,12 +237,15 @@ int main(int argc, char **argv)
         card(-34, 34, -0.16f, Color::rgb(0xd9ecff));
         card(34, 30, 0.14f, Color::rgb(0xffd3e6));
         card(0, 18, 0.0f, Color::rgb(0xffffff));
-        list.rounded_rect({cx - 112 * s, cy + 46 * s, 120 * s, 16 * s}, 8 * s, ink.with_alpha(0.8f));
-        list.rounded_rect({cx - 112 * s, cy + 78 * s, 180 * s, 12 * s}, 6 * s, ink.with_alpha(0.3f));
+        list.rounded_rect({cx - 112 * s, cy + 46 * s, 120 * s, 16 * s}, 8 * s,
+                          ink.with_alpha(0.8f));
+        list.rounded_rect({cx - 112 * s, cy + 78 * s, 180 * s, 12 * s}, 6 * s,
+                          ink.with_alpha(0.3f));
         list.circle(cx + 96 * s, cy + 66 * s, 9 * s, blue);
         const float bx = cx;
         const float by = cy - 64 * s;
-        list.glow({bx - 70 * s, by - 70 * s, 140 * s, 140 * s}, 70 * s, 26 * s, pink.with_alpha(0.5f));
+        list.glow({bx - 70 * s, by - 70 * s, 140 * s, 140 * s}, 70 * s, 26 * s,
+                  pink.with_alpha(0.5f));
         list.circle(bx, by, 70 * s, pink);
         list.rounded_rect({bx - 10 * s, by - 40 * s, 20 * s, 58 * s}, 10 * s, Color::rgb(0xffffff));
         list.line(bx - 30 * s, by + 4 * s, bx, by + 34 * s, 20 * s, Color::rgb(0xffffff));
@@ -257,8 +260,8 @@ int main(int argc, char **argv)
         {
             hui::ui::text(list, fonts.display, "PayLoader", 960, 800, 120, ink,
                           hui::gfx::Align::center);
-            hui::ui::text(list, fonts.semibold, "PAYLOADS FROM YOUR CONTROLLER", 960, 870, 30,
-                          pink, hui::gfx::Align::center, 8.0f);
+            hui::ui::text(list, fonts.semibold, "PAYLOADS FROM YOUR CONTROLLER", 960, 870, 30, pink,
+                          hui::gfx::Align::center, 8.0f);
         }
         renderer.begin();
         renderer.backdrop(spec);

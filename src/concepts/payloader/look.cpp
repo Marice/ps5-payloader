@@ -136,8 +136,8 @@ void draw_link_card(ui::Painter &paint, const Rect &r, const View &view)
     if (view.link == Link::checking)
     {
         paint.heading("Looking for pldmgr", x, y, 38.0f, look.text);
-        paragraph(paint, "Asking 127.0.0.1:8084 whether Payload Manager runs.", x, y + 56.0f,
-                  25.0f, width, look.text_muted);
+        paragraph(paint, "Asking 127.0.0.1:8084 whether Payload Manager runs.", x, y + 56.0f, 25.0f,
+                  width, look.text_muted);
         return;
     }
     const char *title = "Start pldmgr first";

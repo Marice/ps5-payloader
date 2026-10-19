@@ -147,7 +147,8 @@ class RunningScreen final : public Screen
             return;
         pending_ = *p;
         ask(kConfirmStop,
-            {ui::StatusKind::warning, "Stop " + p->name + "?",
+            {ui::StatusKind::warning,
+             "Stop " + p->name + "?",
              "The payload ends at once. What it was doing stops with it; start it again on the "
              "Payloads screen.",
              {{"Cancel"}, {"Stop", ui::ButtonKind::primary, true}},
