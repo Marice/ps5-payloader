@@ -44,7 +44,8 @@ Chain detect_chain(const std::string &root = {});
 struct AutoloaderList
 {
     std::vector<AutoloadEntry> entries;
-    std::vector<std::string> files; // .elf and .bin files in the folder, sorted
+    std::vector<std::string> files; // .elf and .bin files in the folder, and every file the list
+                                    // names that exists, sorted
     std::string text;               // autoload.txt as read
 };
 

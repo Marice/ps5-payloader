@@ -7,6 +7,7 @@
 #include "payloader/versions.hpp"
 
 #include <algorithm>
+#include <sys/stat.h>
 #include <cctype>
 #include <ctime>
 
@@ -89,10 +90,23 @@ bool read_autoloader(const std::string &root, const std::string &directory, Auto
     if (!save::read_file(root + directory + "/autoload.txt", &list.text, kMaxList))
         return false;
     list.entries = parse_autoload_lines(list.text);
+    // Listing a folder can come back empty in the app's sandbox on the console while the files are
+    // there (the kit notes the same for /app0), so every file the list names is also checked on its
+    // own.
     for (const std::string &name : save::list_files(root + directory))
         if (ends_with_nocase(name, ".elf") || ends_with_nocase(name, ".bin"))
             list.files.push_back(name);
+    for (const AutoloadEntry &entry : list.entries)
+    {
+        struct stat info
+        {
+        };
+        if (!entry.wait && ::stat((root + directory + "/" + entry.target).c_str(), &info) == 0 &&
+            S_ISREG(info.st_mode))
+            list.files.push_back(entry.target);
+    }
     std::sort(list.files.begin(), list.files.end());
+    list.files.erase(std::unique(list.files.begin(), list.files.end()), list.files.end());
     out = std::move(list);
     return true;
 }
