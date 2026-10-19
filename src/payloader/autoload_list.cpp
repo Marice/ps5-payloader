@@ -111,6 +111,58 @@ bool format_autoload_list(const std::vector<AutoloadEntry> &list, std::string &o
     return true;
 }
 
+std::vector<AutoloadEntry> parse_autoload_lines(std::string_view text)
+{
+    std::vector<AutoloadEntry> list;
+    std::size_t start = 0;
+    while (start < text.size())
+    {
+        std::size_t end = text.find('\n', start);
+        if (end == std::string_view::npos)
+            end = text.size();
+        const std::string_view line = trim(text.substr(start, end - start));
+        start = end + 1;
+        if (line.empty())
+            continue;
+        if (line.front() == '!')
+        {
+            int ms = 0;
+            if (parse_wait(line.substr(1), ms))
+                list.push_back(AutoloadEntry::pause(ms));
+            continue;
+        }
+        list.push_back(AutoloadEntry::payload(std::string(line)));
+    }
+    return list;
+}
+
+bool format_autoload_lines(const std::vector<AutoloadEntry> &list, std::string &out)
+{
+    std::string text;
+    for (const AutoloadEntry &entry : list)
+    {
+        if (entry.wait)
+        {
+            if (entry.wait_ms < 0 || entry.wait_ms > kMaxWaitMs)
+                return false;
+            text += '!';
+            text += std::to_string(entry.wait_ms);
+            text += '\n';
+            continue;
+        }
+        const std::string_view name = trim(entry.target);
+        if (name.empty() || name.front() == '!' || name.find('/') != std::string_view::npos)
+            return false;
+        for (const char c : name)
+            if (static_cast<unsigned char>(c) < 32 || c == 127)
+                return false;
+        text += name;
+        text += '\n';
+    }
+    out = std::move(text);
+    return true;
+}
+
 bool move_entry(std::vector<AutoloadEntry> &list, std::size_t index, int step)
 {
     if (index >= list.size() || (step != -1 && step != 1))

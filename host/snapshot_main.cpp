@@ -185,8 +185,21 @@ int main(int argc, char **argv)
         return 1;
     // PayLoader: a pretend pldmgr, so the screens have content; PAYLOADER_OFFLINE=1 shows
     // them without one.
+    // A pretend /data with ps5-autoloader's list, so the Autoload screen shows the boot chain.
+    const std::string demo_root = std::string(argv[2]) + "/.payloader-root";
+    hui::save::ensure_directory(argv[2]);
+    hui::save::ensure_directory(demo_root);
+    hui::save::ensure_directory(demo_root + "/data");
+    hui::save::ensure_directory(demo_root + "/data/ps5_autoloader");
+    hui::save::write_atomic(demo_root + "/data/ps5_autoloader/autoload.txt",
+                            "websrv.elf\n!3000\netaHEN.elf\n!12000\npackage-helper.elf\n!3000\n"
+                            "ps5-exporter.elf\n!3000\nps5-signal.elf\n");
+    for (const char *file : {"websrv.elf", "etaHEN.elf", "package-helper.elf", "ps5-exporter.elf",
+                             "ps5-signal.elf", "ftpsrv.elf"})
+        hui::save::write_atomic(demo_root + "/data/ps5_autoloader/" + file, "ELF");
     if (std::getenv("PAYLOADER_OFFLINE") == nullptr)
-        hui::payloader::install_store([] { return hui::payloader::make_demo_transport(); });
+        hui::payloader::install_store([] { return hui::payloader::make_demo_transport(); },
+                                      demo_root);
     hui::demo::Catalog catalog;
     if (!catalog.build_covers(renderer, fonts))
     {

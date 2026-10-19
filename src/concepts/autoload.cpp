@@ -14,6 +14,7 @@
 #include "payloader/autoload_list.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -43,6 +44,8 @@ enum Row
     kAddPayload,
     kAddWait,
     kEmpty,
+    kChainInfo,
+    kPldmgrList,
     kFirstEntry = 100, // + the entry's index
 };
 
@@ -54,6 +57,7 @@ enum MenuTag
     kShorter,
     kRemove,
     kFirstPayload = 1000, // + the index into payloads_ for "Add a payload"
+    kFirstFile = 2000,    // + the index into files_ (ps5-autoloader's folder)
 };
 
 constexpr int kWaitStepMs = 500;
@@ -152,7 +156,11 @@ class AutoloadScreen final : public Screen
     }
     const char *summary() const override
     {
-        return "What pldmgr starts by itself, in which order";
+        return "What starts with the console, in which order";
+    }
+    bool usable(const View &view) const override
+    {
+        return view.link == hui::payloader::Link::ready || file_chain(view);
     }
     std::span<const Topic> topics() const override
     {
@@ -165,6 +173,12 @@ class AutoloadScreen final : public Screen
 
     void show(const View &view) override
     {
+        file_mode_ = file_chain(view);
+        if (file_mode_)
+        {
+            show_file_chain(view);
+            return;
+        }
         if (!view.have_config)
             return;
         payloads_ = view.payloads.items;
@@ -276,11 +290,28 @@ class AutoloadScreen final : public Screen
 
     void menu_chosen(int tag, app::Feedback & /*feedback*/) override
     {
+        if (tag >= kFirstFile)
+        {
+            const std::size_t i = static_cast<std::size_t>(tag - kFirstFile);
+            if (i < files_.size())
+            {
+                if (!list_.empty() && !list_.back().wait)
+                    list_.push_back(AutoloadEntry::pause(3000));
+                list_.push_back(AutoloadEntry::payload(files_[i]));
+                save();
+            }
+            return;
+        }
         if (tag >= kFirstPayload)
         {
             const std::size_t i = static_cast<std::size_t>(tag - kFirstPayload);
             if (i < payloads_.size())
             {
+                if (file_mode_)
+                {
+                    hui::payloader::store().add_to_chain(payloads_[i]);
+                    return;
+                }
                 list_.push_back(AutoloadEntry::payload(payloads_[i].slot));
                 save();
             }
@@ -325,6 +356,11 @@ class AutoloadScreen final : public Screen
         const float width = inside.w - 88.0f;
         float y = inside.y + 64.0f;
         const View &now = view();
+        if (file_mode_)
+        {
+            draw_file_side(paint, now, x, y, width);
+            return;
+        }
         paint.label("LAST RUN", x, y, 19.0f, look.text_muted);
         y += 58.0f;
         if (!now.have_autoload)
@@ -370,6 +406,128 @@ class AutoloadScreen final : public Screen
     }
 
   private:
+    // ps5-autoloader's list is the chain: the autoloader found it, so it runs after the exploit.
+    static bool file_chain(const View &view)
+    {
+        return view.have_chain && view.chain.kind == hui::payloader::ChainKind::autoloader;
+    }
+
+    void show_file_chain(const View &view)
+    {
+        payloads_ = view.payloads.items;
+        files_ = view.chain_list.files;
+        if (pending_ &&
+            (view.chain_list.text == pending_text_ || clock_ - pending_since_ > kSettleSeconds))
+            pending_ = false;
+        if (!pending_)
+            list_ = view.chain_list.entries;
+        std::string signature = "F" + view.chain.directory + "|";
+        for (const AutoloadEntry &e : list_)
+            signature += (e.wait ? "!" + std::to_string(e.wait_ms) : e.target) + ",";
+        for (const std::string &f : files_)
+            signature += f + "/";
+        for (const Payload &p : payloads_)
+            signature += p.slot + "/";
+        if (view.chain.also_pldmgr && view.have_config)
+            signature += view.config.autoload_list + (view.config.autoload_enabled ? "+" : "-");
+        if (signature != signature_)
+        {
+            signature_ = signature;
+            rebuild_file_chain(view);
+        }
+    }
+
+    void rebuild_file_chain(const View &view)
+    {
+        begin_rebuild();
+        form_.add_header("After the exploit");
+        ui::FormRow &where = form_.add_value(kChainInfo, "ps5-autoloader", view.chain.directory);
+        where.description = "The list the autoloader finds first; it starts these in order";
+        form_.add_header("In this order");
+        if (list_.empty())
+            form_.add_value(kEmpty, "The list is empty", "");
+        int number = 1;
+        bool after_etahen = false;
+        for (std::size_t i = 0; i < list_.size(); ++i)
+        {
+            const AutoloadEntry &entry = list_[i];
+            const int id = kFirstEntry + static_cast<int>(i);
+            if (entry.wait)
+            {
+                ui::FormRow &row = form_.add_action(id, "Wait");
+                row.text = wait_text(entry.wait_ms);
+                row.description =
+                    after_etahen
+                        ? "etaHEN needs this time to start; a shorter wait can break the chain"
+                        : "A pause before the next payload";
+                after_etahen = false;
+                continue;
+            }
+            char label[160];
+            std::snprintf(label, sizeof(label), "%d. %s", number++,
+                          file_title(entry.target).c_str());
+            ui::FormRow &row = form_.add_action(id, label);
+            row.description = entry.target;
+            if (std::find(files_.begin(), files_.end(), entry.target) == files_.end())
+                row.text = "File missing";
+            after_etahen = lower(entry.target).find("etahen") != std::string::npos;
+        }
+        form_.add_action(kAddPayload, "Add a payload").chevron = true;
+        form_.add_action(kAddWait, "Add a wait").description = "One second; change it afterwards";
+        if (view.chain.also_pldmgr)
+        {
+            form_.add_header("Then pldmgr's own list");
+            const auto pldmgr_list = hui::payloader::parse_autoload_list(view.config.autoload_list);
+            int count = 0;
+            for (const AutoloadEntry &e : pldmgr_list)
+                count += e.wait ? 0 : 1;
+            ui::FormRow &row = form_.add_value(kPldmgrList, "pldmgr starts",
+                                               !view.have_config ? std::string("-")
+                                               : view.config.autoload_enabled
+                                                   ? std::to_string(count) + " payloads"
+                                                   : std::string("nothing (its autoload is off)"));
+            row.description = "pldmgr is in the list above, so its own list runs too";
+        }
+        end_rebuild();
+    }
+
+    void draw_file_side(ui::Painter &paint, const View &now, float x, float y, float width) const
+    {
+        const ui::Theme &look = paint.theme();
+        paint.label("BOOT LIST", x, y, 19.0f, look.text_muted);
+        y += 58.0f;
+        paint.heading("ps5-autoloader", x, y, 36.0f, look.text);
+        y += 44.0f;
+        paint.body(now.chain.directory + "/autoload.txt", x, y, 21.0f, look.text_muted);
+        y += 50.0f;
+        std::string text =
+            "Your exploit starts ps5-autoloader, which starts this list. Changes take effect the "
+            "next time the console starts. Before the first change of a day, PayLoader keeps the "
+            "list as autoload.txt.bak-payloader-<date> next to it.";
+        if (now.chain.usb_list)
+            text += " This list is on a USB drive: it goes before the one in /data.";
+        if (!now.chain.title_folders.empty())
+            text += " There are also lists for single apps (ps5_autoloader_<title>); PayLoader "
+                    "edits the general one.";
+        if (!now.chain.also_pldmgr)
+            text += " pldmgr's own list is not used on this console.";
+        paragraph(paint, text, x, y, 22.0f, width, look.text_muted);
+    }
+
+    static std::string lower(const std::string &text)
+    {
+        std::string out;
+        for (const char c : text)
+            out += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return out;
+    }
+
+    static std::string file_title(const std::string &file)
+    {
+        const std::size_t dot = file.rfind('.');
+        return dot == std::string::npos || dot == 0 ? file : file.substr(0, dot);
+    }
+
     std::string title_of(const std::string &target) const
     {
         for (const Payload &p : payloads_)
@@ -432,6 +590,31 @@ class AutoloadScreen final : public Screen
     void open_add_menu(app::Feedback &feedback)
     {
         std::vector<ui::MenuItem> items;
+        if (file_mode_)
+        {
+            // The files already next to the list, then pldmgr's payloads (copied in).
+            for (std::size_t i = 0; i < files_.size(); ++i)
+                if (!hui::payloader::autoload_contains(list_, files_[i]))
+                    items.push_back(
+                        menu_item(file_title(files_[i]), kFirstFile + static_cast<int>(i)));
+            for (std::size_t i = 0; i < payloads_.size(); ++i)
+            {
+                const Payload &p = payloads_[i];
+                if (p.kind == "usb" || hui::payloader::autoload_contains(list_, p.filename) ||
+                    std::find(files_.begin(), files_.end(), p.filename) != files_.end())
+                    continue;
+                items.push_back(
+                    menu_item(p.title(), kFirstPayload + static_cast<int>(i), "pldmgr"));
+            }
+            if (items.empty())
+            {
+                toast(ui::StatusKind::info, "Nothing to add",
+                      "Every payload in the folder is in the list already");
+                return;
+            }
+            open_menu(std::move(items), feedback);
+            return;
+        }
         for (std::size_t i = 0; i < payloads_.size(); ++i)
         {
             const Payload &p = payloads_[i];
@@ -451,6 +634,21 @@ class AutoloadScreen final : public Screen
 
     void save()
     {
+        if (file_mode_)
+        {
+            std::string lines;
+            if (!hui::payloader::format_autoload_lines(list_, lines))
+            {
+                toast(ui::StatusKind::warning, "Not saved", "The autoloader cannot read this list");
+                return;
+            }
+            pending_ = true;
+            pending_text_ = lines;
+            pending_since_ = clock_;
+            signature_.clear();
+            hui::payloader::store().save_chain(list_);
+            return;
+        }
         std::string text;
         if (!hui::payloader::format_autoload_list(list_, text))
         {
@@ -468,6 +666,7 @@ class AutoloadScreen final : public Screen
 
     std::vector<AutoloadEntry> list_;
     std::vector<Payload> payloads_;
+    std::vector<std::string> files_;
     std::string signature_;
     std::string pending_text_;
     float pending_since_ = 0.0f;
@@ -478,6 +677,7 @@ class AutoloadScreen final : public Screen
     int focused_entry_ = 0;
     bool enabled_ = false;
     bool pending_ = false;
+    bool file_mode_ = false;
 };
 
 } // namespace

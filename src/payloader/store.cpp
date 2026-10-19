@@ -25,6 +25,7 @@ constexpr float kEvery[] = {
 };
 static_assert(std::size(kEvery) == static_cast<std::size_t>(Topic::count));
 constexpr std::size_t kMaxWaiting = 3;
+constexpr float kChainEvery = 3.0f; // seconds between reads of the boot chain
 
 std::size_t index(Topic topic)
 {
@@ -61,7 +62,8 @@ std::string join_csv(const std::vector<std::string> &items)
 
 } // namespace
 
-Store::Store(TransportFactory factory) : factory_(std::move(factory))
+Store::Store(TransportFactory factory, std::string root)
+    : factory_(std::move(factory)), root_(std::move(root))
 {
 }
 
@@ -90,6 +92,7 @@ std::vector<Notice> Store::take_notices()
 void Store::refresh()
 {
     since_link_ = 1000.0f;
+    since_chain_ = 1000.0f;
     since_.fill(1000.0f);
     repository_asked_ = false;
     sources_asked_ = false;
@@ -107,6 +110,16 @@ void Store::poll(float dt)
     }
     if (worker_.waiting() >= kMaxWaiting)
         return; // still busy with earlier ones
+
+    // The boot chain comes from files on the console, so it is read with or without pldmgr.
+    since_chain_ += dt;
+    const bool chain_wanted =
+        wanted_[index(Topic::autoload)] > 0.0f || wanted_[index(Topic::payloads)] > 0.0f;
+    if (chain_wanted && since_chain_ >= kChainEvery)
+    {
+        since_chain_ = 0.0f;
+        worker_.queue([this] { read_chain(); });
+    }
 
     if (!linked())
     {
@@ -545,6 +558,107 @@ void Store::save_settings(const ConfigChange &change)
         });
 }
 
+void Store::read_chain()
+{
+    Chain chain = detect_chain(root_);
+    AutoloaderList list;
+    if (chain.kind == ChainKind::autoloader && !read_autoloader(root_, chain.directory, list))
+        chain.kind = ChainKind::unknown;
+    std::lock_guard<std::mutex> lock(mutex_);
+    state_.chain = std::move(chain);
+    state_.chain_list = std::move(list);
+    state_.have_chain = true;
+    ++revision_;
+}
+
+void Store::save_chain(const std::vector<AutoloadEntry> &entries)
+{
+    worker_.queue(
+        [this, entries]
+        {
+            Chain chain = detect_chain(root_);
+            std::string error = chain.kind == ChainKind::autoloader
+                                    ? write_autoloader(root_, chain.directory, entries, today())
+                                    : "ps5-autoloader's list is not found";
+            Notice n;
+            n.failed = !error.empty();
+            n.title = error.empty() ? "Boot list saved" : "Boot list not saved";
+            n.detail = error.empty() ? chain.directory + "/autoload.txt" : error;
+            notice(std::move(n));
+            read_chain();
+        });
+}
+
+void Store::add_to_chain(const Payload &payload)
+{
+    const std::string source = payload.path;
+    const std::string name = payload.filename.empty()
+                                 ? payload.path.substr(payload.path.rfind('/') + 1)
+                                 : payload.filename;
+    worker_.queue(
+        [this, source, name]
+        {
+            Chain chain = detect_chain(root_);
+            AutoloaderList list;
+            std::string error;
+            if (chain.kind != ChainKind::autoloader ||
+                !read_autoloader(root_, chain.directory, list))
+                error = "ps5-autoloader's list is not found";
+            if (error.empty())
+                error = copy_into_chain(root_, chain.directory, source, name);
+            if (error.empty())
+            {
+                if (!list.entries.empty() && !list.entries.back().wait)
+                    list.entries.push_back(AutoloadEntry::pause(3000));
+                list.entries.push_back(AutoloadEntry::payload(name));
+                error = write_autoloader(root_, chain.directory, list.entries, today());
+            }
+            Notice n;
+            n.failed = !error.empty();
+            n.title = error.empty() ? name + " starts with the console" : name + " not added";
+            n.detail = error;
+            notice(std::move(n));
+            read_chain();
+        });
+}
+
+void Store::remove_from_chain(const std::string &file)
+{
+    worker_.queue(
+        [this, file]
+        {
+            Chain chain = detect_chain(root_);
+            AutoloaderList list;
+            std::string error;
+            if (chain.kind != ChainKind::autoloader ||
+                !read_autoloader(root_, chain.directory, list))
+                error = "ps5-autoloader's list is not found";
+            if (error.empty())
+            {
+                // The entry, and the wait right before it, so no double wait is left behind.
+                std::vector<AutoloadEntry> kept;
+                for (const AutoloadEntry &entry : list.entries)
+                {
+                    if (!entry.wait && entry.target == file)
+                    {
+                        if (!kept.empty() && kept.back().wait)
+                            kept.pop_back();
+                        continue;
+                    }
+                    kept.push_back(entry);
+                }
+                error = write_autoloader(root_, chain.directory, kept, today());
+            }
+            Notice n;
+            n.failed = !error.empty();
+            n.title =
+                error.empty() ? file + " no longer starts with the console" : file + " not removed";
+            n.detail = error;
+            notice(std::move(n));
+            read_chain();
+        });
+}
+
 void Store::wait_idle()
 {
     worker_.wait_idle();
@@ -569,9 +683,9 @@ Store &store()
     return *slot;
 }
 
-void install_store(Store::TransportFactory factory)
+void install_store(Store::TransportFactory factory, std::string root)
 {
-    store_slot() = std::make_unique<Store>(std::move(factory));
+    store_slot() = std::make_unique<Store>(std::move(factory), std::move(root));
 }
 
 } // namespace hui::payloader

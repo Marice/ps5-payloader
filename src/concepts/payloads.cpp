@@ -180,8 +180,7 @@ class PayloadsScreen final : public Screen
             std::find(favourites.begin(), favourites.end(), p->slot) != favourites.end();
         ui::MenuItem autoload = menu_item("Start with autoload", kAutoload);
         autoload.checkable = true;
-        autoload.checked = hui::payloader::autoload_contains(
-            hui::payloader::parse_autoload_list(now.config.autoload_list), p->slot);
+        autoload.checked = in_chain(now, *p);
         ui::MenuItem line;
         line.separator = true;
         ui::MenuItem remove = menu_item("Delete", kDelete);
@@ -282,12 +281,16 @@ class PayloadsScreen final : public Screen
             std::find(favourites.begin(), favourites.end(), p->slot) != favourites.end();
         int position = 0;
         int number = 0;
-        for (const AutoloadEntry &e : hui::payloader::parse_autoload_list(now.config.autoload_list))
+        const bool file_chain =
+            now.have_chain && now.chain.kind == hui::payloader::ChainKind::autoloader;
+        for (const AutoloadEntry &e :
+             file_chain ? now.chain_list.entries
+                        : hui::payloader::parse_autoload_list(now.config.autoload_list))
         {
             if (e.wait)
                 continue;
             ++number;
-            if (e.target == p->slot || e.target == p->path)
+            if (file_chain ? e.target == p->filename : (e.target == p->slot || e.target == p->path))
                 position = number;
         }
         if (favourite || position > 0)
@@ -295,7 +298,7 @@ class PayloadsScreen final : public Screen
             std::string status = favourite ? "Favourite" : "";
             if (position > 0)
                 status += (status.empty() ? "" : ", ") + std::string("number ") +
-                          std::to_string(position) + " in the autoload list";
+                          std::to_string(position) + " at start-up";
             paint.body(status, x, y + 10.0f, 22.0f, look.accent);
             y += 50.0f;
         }
@@ -388,9 +391,27 @@ class PayloadsScreen final : public Screen
         return nullptr;
     }
 
+    // Whether the payload starts with the console: in ps5-autoloader's list (by file name) when
+    // that is the chain, else in pldmgr's own list (by slot).
+    static bool in_chain(const View &now, const Payload &p)
+    {
+        if (now.have_chain && now.chain.kind == hui::payloader::ChainKind::autoloader)
+            return hui::payloader::autoload_contains(now.chain_list.entries, p.filename);
+        return hui::payloader::autoload_contains(
+            hui::payloader::parse_autoload_list(now.config.autoload_list), p.slot);
+    }
+
     void toggle_autoload(const Payload &p)
     {
         const View &now = view();
+        if (now.have_chain && now.chain.kind == hui::payloader::ChainKind::autoloader)
+        {
+            if (in_chain(now, p))
+                hui::payloader::store().remove_from_chain(p.filename);
+            else
+                hui::payloader::store().add_to_chain(p);
+            return;
+        }
         std::vector<AutoloadEntry> list =
             hui::payloader::parse_autoload_list(now.config.autoload_list);
         const bool listed = hui::payloader::autoload_contains(list, p.slot);

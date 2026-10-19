@@ -29,7 +29,7 @@ When pldmgr does not run, every screen says how to start it and checks again eve
 | --- | --- |
 | **Payloads** | The payloads pldmgr has installed, favourites first, then the ones on a USB drive. **Cross** starts one. **Triangle** opens its menu: favourite, start with the autoload list, delete. |
 | **Repository** | The payloads in pldmgr's repositories. Each row says if it is installed, or which update is ready. **Cross** installs or updates; **Square** refreshes every repository. When the same payload is installed from another repository, PayLoader asks before it replaces it. |
-| **Autoload** | The list pldmgr starts by itself: on or off, the countdown, and the payloads in order with waits between them. **Cross** on an entry moves it, changes a wait or removes it. While pldmgr runs the list, the screen shows its progress and can stop it. |
+| **Autoload** | What starts with the console, in order, with waits between the payloads: the boot chain your console actually uses (see below). **Cross** on an entry moves it, changes a wait or removes it. For pldmgr's own list also on or off and the countdown; while pldmgr runs it, the screen shows its progress and can stop it. |
 | **Running** | The payloads that run now, with their memory. **Cross** stops one, after it asks. The system's own processes and pldmgr itself are not listed. |
 | **Settings** | pldmgr's repositories (add one by its address, remove one) and its options: extra repositories, the browser at start, its own home screen icon, the disc player, USB drives. |
 
@@ -41,6 +41,23 @@ When pldmgr does not run, every screen says how to start it and checks again eve
 <img src="docs/media/payloader/running.png" width="49%" alt="The Running screen">
 <img src="docs/media/payloader/settings.png" width="49%" alt="The Settings screen">
 </p>
+
+## Which list the Autoload screen edits
+
+There are two ways a console starts payloads after the exploit, and PayLoader shows the one in use:
+
+- **ps5-autoloader's list.** itsPLK's autoloader looks for `ps5_autoloader/autoload.txt` on a USB drive
+  (`/mnt/usb0` to `/mnt/usb7`) first, then in `/data`; folders for single apps (`ps5_autoloader_<TITLE_ID>`) come
+  first. When it finds one, it starts the files it names, one per line, with `!<ms>` waits. PayLoader then edits that
+  file directly, also when pldmgr does not run. Before the first change of a day it keeps the list as
+  `autoload.txt.bak-payloader-<date>` next to it. A payload installed in pldmgr is copied into the folder when you add
+  it; removing an entry keeps the file. When the list starts pldmgr too, the screen also says what pldmgr's own list
+  starts.
+- **pldmgr's own list.** When the autoloader finds no list, it starts pldmgr, and pldmgr starts its own list
+  (`/data/pldmgr/autoload.txt`) when its autoload is on. PayLoader edits that list through pldmgr.
+
+Changes take effect the next time the console starts. The app needs etaHEN's "Allow /data in sandbox" to read
+`/data`.
 
 ## How it works
 

@@ -42,6 +42,14 @@ std::vector<AutoloadEntry> parse_autoload_list(std::string_view text);
 // out of range, or the text would be longer than pldmgr keeps.
 bool format_autoload_list(const std::vector<AutoloadEntry> &list, std::string &out);
 
+// ps5-autoloader's autoload.txt: the same entries, one per line, a file name in
+// the list's folder or "!<ms>". Blank lines and stray carriage returns are skipped.
+std::vector<AutoloadEntry> parse_autoload_lines(std::string_view text);
+
+// One entry per line, each line ended. False when a name is empty, starts
+// with '!', holds a '/' or a control character, or a wait is out of range.
+bool format_autoload_lines(const std::vector<AutoloadEntry> &list, std::string &out);
+
 // Moves entry index one place up (-1) or down (+1). False at either end.
 bool move_entry(std::vector<AutoloadEntry> &list, std::size_t index, int step);
 

@@ -8,7 +8,10 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 namespace
@@ -151,6 +154,36 @@ TEST_F(Screens, EveryScreenExplainsWhenPldmgrIsAway)
     }
     for (const Request &request : fake_.requests())
         EXPECT_EQ(request.method, "GET") << request.target; // nothing was changed blindly
+}
+
+TEST_F(Screens, AutoloadEditsTheAutoloadersListWithoutPldmgr)
+{
+    namespace fs = std::filesystem;
+    const std::string root = (fs::temp_directory_path() / "payloader-screens-chain").string();
+    fs::remove_all(root);
+    fs::create_directories(root + "/data/ps5_autoloader");
+    std::ofstream(root + "/data/ps5_autoloader/autoload.txt")
+        << "websrv.elf\n!3000\netaHEN.elf\n!12000\nps5-signal.elf\n";
+    fake_.set_offline(true);
+    hui::payloader::install_store([this] { return fake_.transport(); }, root);
+
+    const std::unique_ptr<Concept> screen = hui::concepts::make_autoload(context_);
+    screen->enter();
+    settle(*screen);
+    EXPECT_EQ(hui::payloader::store().view().chain.kind, hui::payloader::ChainKind::autoloader);
+    expect_drawable(*screen);
+    step(*screen,
+         press(Action::confirm)); // the focus starts on 1. websrv (the folder line is read-only)
+    step(*screen, nav(Direction::down)); // past "Move up", off for the first
+    step(*screen, press(Action::confirm));
+    settle(*screen);
+
+    std::stringstream text;
+    text << std::ifstream(root + "/data/ps5_autoloader/autoload.txt").rdbuf();
+    EXPECT_EQ(text.str(), "!3000\nwebsrv.elf\netaHEN.elf\n!12000\nps5-signal.elf\n");
+    EXPECT_TRUE(fs::exists(root + "/data/ps5_autoloader/autoload.txt.bak-payloader-" +
+                           hui::payloader::today()));
+    fs::remove_all(root);
 }
 
 } // namespace

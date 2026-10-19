@@ -77,7 +77,7 @@ void Screen::update(const InputFrame &input, float dt, app::Feedback &feedback)
     restyle();
     pump_notices(feedback);
     const View &now = store.view();
-    const bool linked = now.link == Link::ready;
+    const bool linked = usable(now);
     show(now);
 
     if (dialog_.is_open())
@@ -180,7 +180,7 @@ void Screen::draw(app::Frame &frame) const
     frame.scene.push_opacity(tween::cubic_out(age_ / 0.3f));
     const View &now = view();
     draw_header(paint, title(), summary(), now, clock_);
-    if (now.link == Link::ready)
+    if (usable(now))
     {
         form_.draw(canvas);
         draw_side(paint);

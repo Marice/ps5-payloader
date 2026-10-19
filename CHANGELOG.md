@@ -18,3 +18,6 @@ All notable changes to PayLoader are recorded here. The format follows
 - Settings screen: add and remove repositories; pldmgr's options for extra repositories, the browser at start, its
   own home screen icon, the disc player and USB drives.
 - A card on every screen when pldmgr does not run, is older than 0.6.0, or something else uses port 8084.
+- Autoload screen: the boot chain the console uses. ps5-autoloader's `autoload.txt` (USB before `/data`) is edited
+  directly, also without pldmgr, with a daily backup of the list; pldmgr's own list when the autoloader has none.
+  Payloads screen: "Start with autoload" acts on the same chain.

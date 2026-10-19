@@ -72,6 +72,11 @@ class Screen : public app::Concept
     {
     }
     virtual void draw_side(ui::Painter &paint) const = 0;
+    // Whether the screen has something to show; otherwise the "no pldmgr" card takes its place.
+    virtual bool usable(const hui::payloader::View &view) const
+    {
+        return view.link == hui::payloader::Link::ready;
+    }
 
     const hui::payloader::View &view() const;
     void toast(ui::StatusKind kind, std::string title, std::string detail = {});

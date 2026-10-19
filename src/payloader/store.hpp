@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "payloader/chain.hpp"
 #include "payloader/pldmgr.hpp"
 #include "payloader/worker.hpp"
 
@@ -71,6 +72,11 @@ struct View
     std::vector<Source> sources;
 
     // Slots, pids and ids with an action under way, to show a spinner and refuse a second press.
+    // The boot chain (read from the console's files, also without pldmgr).
+    bool have_chain = false;
+    Chain chain;
+    AutoloaderList chain_list; // when chain.kind is autoloader
+
     std::set<std::string> busy;
 };
 
@@ -93,7 +99,8 @@ class Store
 {
   public:
     using TransportFactory = std::function<std::unique_ptr<Transport>()>;
-    explicit Store(TransportFactory factory);
+    // root prefixes the console's file paths (tests); the app passes "".
+    explicit Store(TransportFactory factory, std::string root = {});
     Store(const Store &) = delete;
     Store &operator=(const Store &) = delete;
 
@@ -120,6 +127,12 @@ class Store
     void remove_source(int index, const std::string &name);
     void stop(const Process &process);
     void save_settings(const ConfigChange &change);
+    // ps5-autoloader's list (the chain must be the autoloader's).
+    void save_chain(const std::vector<AutoloadEntry> &entries);
+    // Copies an installed payload's file next to the list, then appends it.
+    void add_to_chain(const Payload &payload);
+    // Takes every line naming file out of the list; the file stays.
+    void remove_from_chain(const std::string &file);
 
     // Tests: blocks until the worker has nothing left to do.
     void wait_idle();
@@ -135,7 +148,10 @@ class Store
     void read_config(Pldmgr &api);
     void mark_busy(const std::string &key, bool busy);
 
+    void read_chain();
+
     TransportFactory factory_;
+    std::string root_;
     std::unique_ptr<Pldmgr> api_; // used on the worker thread only
     std::mutex mutex_;
     View state_; // written by the worker under mutex_
@@ -148,6 +164,7 @@ class Store
     std::array<float, static_cast<std::size_t>(Topic::count)> wanted_{};
     std::array<float, static_cast<std::size_t>(Topic::count)> since_{};
     float since_link_ = 1000.0f;
+    float since_chain_ = 1000.0f;
     // Cleared by worker jobs to ask again; relinked_ asks for everything after a reconnect.
     std::atomic<bool> repository_asked_{false};
     std::atomic<bool> sources_asked_{false};
@@ -158,6 +175,6 @@ class Store
 // The app's store, made on first use.
 Store &store();
 // Replaces it, for tests.
-void install_store(Store::TransportFactory factory);
+void install_store(Store::TransportFactory factory, std::string root = {});
 
 } // namespace hui::payloader
