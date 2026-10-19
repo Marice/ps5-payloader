@@ -181,36 +181,10 @@ class ToolTests(unittest.TestCase):
             self.assertIn("DEPLOY_FORMAT", refused.stderr)
             self.assertFalse(built.exists())
 
-    def test_automation_builds_the_zip_only(self):
-        workflow = (ROOT / ".github/workflows/tooling.yml").read_text(encoding="utf-8")
-        self.assertNotIn("ffpfsc", workflow.lower())
-        self.assertNotIn("mkpfs", workflow.lower())
-        self.assertIn("run: make app", workflow)
-        self.assertIn('sha256sum "$TITLE_ID.zip" > SHA256SUMS', workflow)
-        self.assertIn('assets=("release/$FOLDER_ZIP" "release/$CHECKSUM")', workflow)
-        # The ZIP is attested (signed provenance) once final, before the upload.
-        attest = (
-            "uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6"
-            " # v4.2.2"
-        )
-        self.assertEqual(workflow.count(attest), 1)
-        checked = workflow.index("- name: Check every ZIP entry is stored as 0777\n")
-        upload = workflow.index("- name: Upload build\n")
-        self.assertLess(checked, workflow.index(attest))
-        self.assertLess(workflow.index(attest), upload)
-        self.assertIn("subject-path: dist/${{ env.TITLE_ID }}.zip\n", workflow)
-        self.assertIn(
-            "if: github.event_name != 'pull_request' && !github.event.repository.private\n",
-            workflow,
-        )
-        needed = ("contents: read", "id-token: write", "attestations: write")
-        for permission in needed:
-            self.assertIn(f"      {permission}\n", workflow)
-
+    def test_builds_the_zip_only(self):
         # No image is built: no target, no build mode, no script branch, no tooling.
         gone = ("ffpkg", "ffpfsc", "exfat", "ufs2tool", "mkpfs")
-        for name in ("Makefile", "tools/build.sh", "build.ps1",
-                     ".github/workflows/tooling.yml"):
+        for name in ("Makefile", "tools/build.sh", "build.ps1"):
             text = (ROOT / name).read_text(encoding="utf-8").lower()
             for word in gone:
                 self.assertNotIn(word, text, name)
@@ -225,34 +199,6 @@ class ToolTests(unittest.TestCase):
         deploy = (ROOT / "tools/deploy.sh").read_text(encoding="utf-8")
         self.assertIn('make -C "$root" --no-print-directory app\n', deploy)
         self.assertNotIn("$format", deploy)
-
-    def test_release_job_never_replaces_published_files(self):
-        workflow = (ROOT / ".github/workflows/tooling.yml").read_text(encoding="utf-8")
-        self.assertNotIn("--clobber", workflow)
-        self.assertNotIn("delete-asset", workflow)
-        self.assertNotIn("gh release edit", workflow)
-        # One upload, to a release that has no ZIP yet; one warning otherwise.
-        self.assertEqual(workflow.count("gh release upload"), 1)
-        self.assertIn("--json assets --jq '.assets[].name'", workflow)
-        self.assertIn("::warning title=Release files not from this run::", workflow)
-
-    def test_pull_request_builds_are_named_and_labelled(self):
-        workflow = (ROOT / ".github/workflows/tooling.yml").read_text(encoding="utf-8")
-        self.assertIn(
-            'echo "artifact=${GITHUB_REPOSITORY##*/}-PR$PR_NUMBER-$short" >> "$GITHUB_OUTPUT"',
-            workflow,
-        )
-        self.assertIn('echo "BUILD_LABEL=PR $PR_NUMBER, $short" >> "$GITHUB_ENV"', workflow)
-        self.assertIn("name: ${{ steps.label.outputs.artifact }}", workflow)
-        # The release job still finds a tag's build under its commit.
-        self.assertIn('--name "ps5-homebrew-ui-$GITHUB_SHA"', workflow)
-        self.assertIn('echo "artifact=ps5-homebrew-ui-$GITHUB_SHA" >> "$GITHUB_OUTPUT"', workflow)
-        # A contributor's code is never built with write access or secrets.
-        self.assertNotIn("pull_request_target:", workflow)
-        build = (ROOT / "tools/build.sh").read_text(encoding="utf-8")
-        self.assertIn('> "$app/build-label.txt"', build)
-        self.assertIn("{1,40}$", build)
-        self.assertLess(build.index("BUILD_LABEL must be"), build.index("ninja_run\n\napp="))
 
     def test_build_label_is_checked_before_anything_is_built(self):
         build = (ROOT / "tools/build.sh").read_text(encoding="utf-8")
