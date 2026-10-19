@@ -1,0 +1,3 @@
+{"sources":[
+  {"id":"default","name":"Official Repository","url":"https://itsplk.github.io/ps5-payloads-mirror/payloads_v2.json","removable":false}
+]}

@@ -1,0 +1,1 @@
+{"remaining":-1,"remaining_ms":-1000,"total":0,"done":0,"current":"","list":"","delay":0,"KILL_DISC_PLAYER_ON_STARTUP":true,"SCAN_USB_PAYLOADS":false,"state":"disabled","successful":0,"failed":0,"skipped":0,"outcomes":"","entry_index":-1,"entry_duration_ms":0,"entry_remaining_ms":0}

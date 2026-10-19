@@ -1,0 +1,135 @@
+{
+  "self":{"id":"pldmgr","running_version":"0.6.1","pending_version":""},
+  "items": [
+    {
+      "slot": "repo/websrv@e8cce5d1",
+      "path": "/data/pldmgr/payloads/repo/websrv@e8cce5d1/websrv_v0.34.elf",
+      "kind": "repo",
+      "filename": "websrv_v0.34.elf",
+      "id": "websrv",
+      "source_url": "https://itsplk.github.io/ps5-payloads-mirror/payloads_v2.json",
+      "source_name": "Official Repository",
+      "name": "websrv",
+      "version": "v0.34",
+      "checksum": "54730c867c6e1148536fdcb370e63a7762d989ea87b62488ad4caff64d43f263",
+      "last_update": "2026-08-02",
+      "author": "",
+      "details_url": "",
+      "source": "default",
+      "description": "A simple web server that accepts connections on port 8080"
+    },
+    {
+      "slot": "repo/shadowmountplus@e8cce5d1",
+      "path": "/data/pldmgr/payloads/repo/shadowmountplus@e8cce5d1/ShadowMountPlus_1.7beta2.elf",
+      "kind": "repo",
+      "filename": "ShadowMountPlus_1.7beta2.elf",
+      "id": "shadowmountplus",
+      "source_url": "https://itsplk.github.io/ps5-payloads-mirror/payloads_v2.json",
+      "source_name": "Official Repository",
+      "name": "ShadowMountPlus",
+      "version": "1.7beta2",
+      "checksum": "3f716a7b2220c7e87e87452ae05cad689ef842d3beb4cdad6c526cb6dfc2b6b5",
+      "last_update": "2026-09-21",
+      "author": "",
+      "details_url": "",
+      "source": "default",
+      "description": "A fully automated, background 'Auto-Mounter' payload for Jailbroken PlayStation 5 consoles."
+    },
+    {
+      "slot": "repo/ps5-web-file-manager@e8cce5d1",
+      "path": "/data/pldmgr/payloads/repo/ps5-web-file-manager@e8cce5d1/ps5-web-file-manager_v1.9.elf",
+      "kind": "repo",
+      "filename": "ps5-web-file-manager_v1.9.elf",
+      "id": "ps5-web-file-manager",
+      "source_url": "https://itsplk.github.io/ps5-payloads-mirror/payloads_v2.json",
+      "source_name": "Official Repository",
+      "name": "ps5-web-file-manager",
+      "version": "v1.9",
+      "checksum": "711cb076e887fcd55d973ade8b84bb6c22720be295bfde18e32761f6e0479a3e",
+      "last_update": "2026-09-16",
+      "author": "",
+      "details_url": "",
+      "source": "default",
+      "description": "A file manager for PS5 with a web UI"
+    },
+    {
+      "slot": "local/etahen",
+      "path": "/data/pldmgr/payloads/local/etahen/etaHEN.elf",
+      "kind": "local",
+      "filename": "etaHEN.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    },
+    {
+      "slot": "local/kstuff",
+      "path": "/data/pldmgr/payloads/local/kstuff/kstuff.elf",
+      "kind": "local",
+      "filename": "kstuff.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    },
+    {
+      "slot": "local/nanodns",
+      "path": "/data/pldmgr/payloads/local/nanodns/nanodns.elf",
+      "kind": "local",
+      "filename": "nanodns.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    },
+    {
+      "slot": "local/shadowmountplus",
+      "path": "/data/pldmgr/payloads/local/shadowmountplus/shadowmountplus_1.7beta4.elf",
+      "kind": "local",
+      "filename": "shadowmountplus_1.7beta4.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    },
+    {
+      "slot": "local/etahen-2",
+      "path": "/data/pldmgr/payloads/local/etahen-2/etaHEN-13.60.elf",
+      "kind": "local",
+      "filename": "etaHEN-13.60.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    },
+    {
+      "slot": "local/etahen-3",
+      "path": "/data/pldmgr/payloads/local/etahen-3/etaHEN-13.60_Standalone-ShadowMount.elf",
+      "kind": "local",
+      "filename": "etaHEN-13.60_Standalone-ShadowMount.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    },
+    {
+      "slot": "local/ps5-exporter",
+      "path": "/data/pldmgr/payloads/local/ps5-exporter/ps5-exporter.elf",
+      "kind": "local",
+      "filename": "ps5-exporter.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    },
+    {
+      "slot": "local/ps5-account-tools",
+      "path": "/data/pldmgr/payloads/local/ps5-account-tools/ps5-account-tools-v1.2.elf",
+      "kind": "local",
+      "filename": "ps5-account-tools-v1.2.elf",
+      "origin": "web_upload",
+      "origin_detail": ""
+    }
+  ],
+  "usb": [
+  ],
+  "payloads": [
+    "/data/pldmgr/payloads/repo/websrv@e8cce5d1/websrv_v0.34.elf",
+    "/data/pldmgr/payloads/repo/shadowmountplus@e8cce5d1/ShadowMountPlus_1.7beta2.elf",
+    "/data/pldmgr/payloads/repo/ps5-web-file-manager@e8cce5d1/ps5-web-file-manager_v1.9.elf",
+    "/data/pldmgr/payloads/local/etahen/etaHEN.elf",
+    "/data/pldmgr/payloads/local/kstuff/kstuff.elf",
+    "/data/pldmgr/payloads/local/nanodns/nanodns.elf",
+    "/data/pldmgr/payloads/local/shadowmountplus/shadowmountplus_1.7beta4.elf",
+    "/data/pldmgr/payloads/local/etahen-2/etaHEN-13.60.elf",
+    "/data/pldmgr/payloads/local/etahen-3/etaHEN-13.60_Standalone-ShadowMount.elf",
+    "/data/pldmgr/payloads/local/ps5-exporter/ps5-exporter.elf",
+    "/data/pldmgr/payloads/local/ps5-account-tools/ps5-account-tools-v1.2.elf"
+  ]
+}

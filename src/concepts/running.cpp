@@ -55,9 +55,11 @@ constexpr app::TourStep kTour[] = {
     {0.3f, action_bit(Action::back), Direction::none},
 };
 
+// pldmgr's web page protects itself and the ELF loader the same way: without the loader, nothing
+// can be started any more.
 bool shown(const Process &p)
 {
-    return p.payload && !hui::payloader::is_system_payload(p.name);
+    return p.payload && !hui::payloader::is_system_payload(p.name) && p.name != "elfldr.elf";
 }
 
 class RunningScreen final : public Screen
@@ -181,10 +183,11 @@ class RunningScreen final : public Screen
         y += 46.0f;
         paint.body(memory_text(total) + " of memory together", x, y, 23.0f, look.text_muted);
         y += 60.0f;
-        paragraph(paint,
-                  "Only payloads show here. The system's own processes and pldmgr itself are left "
-                  "out, so nothing vital can be stopped from this screen.",
-                  x, y, 22.0f, width, look.text_muted);
+        paragraph(
+            paint,
+            "Only payloads show here. The system's own processes, pldmgr and the ELF loader are "
+            "left out, so nothing vital can be stopped from this screen.",
+            x, y, 22.0f, width, look.text_muted);
     }
 
   private:
