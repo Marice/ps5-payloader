@@ -20,6 +20,8 @@
 #include "app/tour.hpp"
 #include "core/save_file.hpp"
 #include "demo/catalog.hpp"
+#include "payloader/demo.hpp"
+#include "payloader/store.hpp"
 #include "gfx/gl_program.hpp"
 #include "gfx/renderer.hpp"
 #include "manifest.hpp"
@@ -181,6 +183,10 @@ int main(int argc, char **argv)
         !load_font(renderer, assets + "/fonts/press-start-2p.huifont", &pixel, &fonts.pixel) ||
         !load_font(renderer, assets + "/fonts/patrick-hand.huifont", &hand, &fonts.hand))
         return 1;
+    // PayLoader: a pretend pldmgr, so the screens have content; PAYLOADER_OFFLINE=1 shows
+    // them without one.
+    if (std::getenv("PAYLOADER_OFFLINE") == nullptr)
+        hui::payloader::install_store([] { return hui::payloader::make_demo_transport(); });
     hui::demo::Catalog catalog;
     if (!catalog.build_covers(renderer, fonts))
     {

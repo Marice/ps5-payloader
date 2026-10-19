@@ -1,0 +1,490 @@
+// PayLoader - Screen "Autoload": what pldmgr starts by itself, in which order.
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// pldmgr's own start list: on or off, the countdown before it, and the
+// payloads with waits between them. Cross on an entry opens its menu (move,
+// change a wait, remove). Every change is saved at once; until pldmgr's
+// config shows it, the screen keeps its own copy, so a poll in between does
+// not undo an edit. While pldmgr runs the list, the screen shows its progress
+// and can stop it.
+
+#include "concepts/concepts.hpp"
+
+#include "concepts/payloader/screen.hpp"
+#include "payloader/autoload_list.hpp"
+
+#include <algorithm>
+#include <cstdio>
+#include <string>
+#include <vector>
+
+namespace hui::concepts
+{
+
+namespace
+{
+
+using gfx::Color;
+using gfx::Rect;
+using namespace payloader;
+using hui::payloader::AutoloadEntry;
+using hui::payloader::AutoloadState;
+using hui::payloader::AutoloadStatus;
+using hui::payloader::Payload;
+using hui::payloader::Topic;
+using hui::payloader::View;
+
+enum Row
+{
+    kProgress = 1,
+    kAbort,
+    kEnabled,
+    kDelay,
+    kAddPayload,
+    kAddWait,
+    kEmpty,
+    kFirstEntry = 100, // + the entry's index
+};
+
+enum MenuTag
+{
+    kUp = 1,
+    kDown,
+    kLonger,
+    kShorter,
+    kRemove,
+    kFirstPayload = 1000, // + the index into payloads_ for "Add a payload"
+};
+
+constexpr int kWaitStepMs = 500;
+constexpr float kSettleSeconds = 6.0f; // how long an unconfirmed save keeps the screen's copy
+constexpr float kDelayQuiet = 1.0f;    // the countdown stepper saves after this pause
+
+constexpr Topic kTopics[] = {Topic::autoload, Topic::payloads};
+
+constexpr const char *kTechniques[] = {
+    "pldmgr keeps the list (/data/pldmgr/autoload.txt) and runs it when it starts",
+    ("Every change is saved at once with /set_config; the screen keeps its copy until pldmgr "
+     "shows it"),
+    "Progress comes from /autoload_status every second; Stop sends /abort",
+};
+
+constexpr ui::Hint kHints[] = {
+    {ui::Button::dpad, "Move"},
+    {ui::Button::cross, "Choose"},
+};
+
+constexpr app::TourStep kTour[] = {
+    {1.2f, 0, Direction::none, "autoload"},
+    {0.3f, 0, Direction::down},
+    {0.3f, 0, Direction::down},
+    {0.6f, 0, Direction::none, "autoload-entry"},
+    {0.5f, action_bit(Action::confirm), Direction::none},
+    {0.6f, 0, Direction::none, "autoload-menu"},
+    {0.3f, action_bit(Action::back), Direction::none},
+};
+
+std::string wait_text(int ms)
+{
+    char text[32];
+    std::snprintf(text, sizeof(text), "%.1f s", static_cast<double>(ms) / 1000.0);
+    return text;
+}
+
+const char *state_text(AutoloadState state)
+{
+    switch (state)
+    {
+    case AutoloadState::countdown:
+        return "Counting down";
+    case AutoloadState::executing:
+        return "Starting payloads";
+    case AutoloadState::waiting:
+        return "Waiting for pldmgr's page";
+    case AutoloadState::done:
+        return "Done";
+    case AutoloadState::aborted:
+        return "Stopped";
+    case AutoloadState::failed:
+        return "Failed";
+    case AutoloadState::disabled:
+        return "Off";
+    case AutoloadState::unknown:
+        break;
+    }
+    return "-";
+}
+
+bool running(AutoloadState state)
+{
+    return state == AutoloadState::countdown || state == AutoloadState::executing ||
+           state == AutoloadState::waiting;
+}
+
+class AutoloadScreen final : public Screen
+{
+  public:
+    using Screen::Screen;
+
+    const app::ConceptInfo &info() const override
+    {
+        static const app::ConceptInfo kInfo{
+            "autoload",
+            "Autoload",
+            "The payloads pldmgr starts by itself, in order, with waits between them",
+            "src/concepts/autoload.cpp",
+            audio::SoundSet::paper,
+            Color::rgb(0x9a6bff),
+            kTechniques,
+        };
+        return kInfo;
+    }
+
+    std::span<const app::TourStep> tour() const override
+    {
+        return kTour;
+    }
+
+  protected:
+    const char *title() const override
+    {
+        return "Autoload";
+    }
+    const char *summary() const override
+    {
+        return "What pldmgr starts by itself, in which order";
+    }
+    std::span<const Topic> topics() const override
+    {
+        return kTopics;
+    }
+    std::span<const ui::Hint> hints() const override
+    {
+        return kHints;
+    }
+
+    void show(const View &view) override
+    {
+        if (!view.have_config)
+            return;
+        payloads_ = view.payloads.items;
+        // pldmgr's copy, unless a save of ours has not shown up there yet.
+        const bool confirmed = view.config.autoload_list == pending_text_ &&
+                               view.config.autoload_enabled == pending_enabled_ &&
+                               view.config.autoload_delay == pending_delay_;
+        if (pending_ && (confirmed || clock_ - pending_since_ > kSettleSeconds))
+            pending_ = false;
+        if (!pending_)
+        {
+            list_ = hui::payloader::parse_autoload_list(view.config.autoload_list);
+            enabled_ = view.config.autoload_enabled;
+            if (delay_changed_at_ < 0.0f)
+                delay_ = view.config.autoload_delay;
+        }
+        if (delay_changed_at_ >= 0.0f && clock_ - delay_changed_at_ > kDelayQuiet)
+        {
+            delay_changed_at_ = -1.0f;
+            save();
+        }
+
+        const bool active = view.have_autoload && running(view.autoload.state);
+        std::string signature = (active ? "A" : "-") + std::to_string(enabled_) + "|";
+        for (const AutoloadEntry &e : list_)
+            signature += (e.wait ? "!" + std::to_string(e.wait_ms) : e.target) + ",";
+        for (const Payload &p : payloads_)
+            signature += p.slot + "/";
+        if (signature != signature_)
+        {
+            signature_ = signature;
+            rebuild(active);
+        }
+        form_.set_toggle(kEnabled, enabled_);
+        if (delay_changed_at_ < 0.0f)
+            form_.set_stepper(kDelay, delay_);
+        if (active)
+        {
+            const AutoloadStatus &s = view.autoload;
+            char text[96];
+            if (s.state == AutoloadState::countdown)
+                std::snprintf(text, sizeof(text), "Starts in %lld s",
+                              (s.remaining_ms + 999) / 1000);
+            else
+                std::snprintf(text, sizeof(text), "%d of %d", s.done, s.total);
+            form_.set_value_text(kProgress, text);
+        }
+    }
+
+    void activated(int id, app::Feedback &feedback) override
+    {
+        switch (id)
+        {
+        case kAbort:
+            hui::payloader::store().abort_autoload();
+            return;
+        case kAddPayload:
+            open_add_menu(feedback);
+            return;
+        case kAddWait:
+            list_.push_back(AutoloadEntry::pause(1000));
+            save();
+            return;
+        default:
+            break;
+        }
+        const int index = id - kFirstEntry;
+        if (index < 0 || index >= static_cast<int>(list_.size()))
+            return;
+        focused_entry_ = index;
+        const AutoloadEntry &entry = list_[static_cast<std::size_t>(index)];
+        std::vector<ui::MenuItem> items;
+        ui::MenuItem up = menu_item("Move up", kUp);
+        up.disabled = index == 0;
+        ui::MenuItem down = menu_item("Move down", kDown);
+        down.disabled = index + 1 >= static_cast<int>(list_.size());
+        items = {up, down};
+        if (entry.wait)
+        {
+            ui::MenuItem longer = menu_item("Wait longer", kLonger, "+0.5 s");
+            longer.disabled = entry.wait_ms + kWaitStepMs > hui::payloader::kMaxWaitMs;
+            ui::MenuItem shorter = menu_item("Wait shorter", kShorter, "-0.5 s");
+            shorter.disabled = entry.wait_ms <= 0;
+            items.push_back(longer);
+            items.push_back(shorter);
+        }
+        ui::MenuItem line;
+        line.separator = true;
+        ui::MenuItem remove = menu_item("Remove from the list", kRemove);
+        remove.danger = true;
+        items.push_back(line);
+        items.push_back(remove);
+        open_menu(std::move(items), feedback);
+    }
+
+    void changed(int id) override
+    {
+        if (id == kEnabled)
+        {
+            enabled_ = form_.toggle_value(kEnabled);
+            save();
+        }
+        else if (id == kDelay)
+        {
+            delay_ = form_.stepper_value(kDelay);
+            delay_changed_at_ = clock_;
+        }
+    }
+
+    void menu_chosen(int tag, app::Feedback & /*feedback*/) override
+    {
+        if (tag >= kFirstPayload)
+        {
+            const std::size_t i = static_cast<std::size_t>(tag - kFirstPayload);
+            if (i < payloads_.size())
+            {
+                list_.push_back(AutoloadEntry::payload(payloads_[i].slot));
+                save();
+            }
+            return;
+        }
+        const std::size_t index = static_cast<std::size_t>(focused_entry_);
+        if (index >= list_.size())
+            return;
+        AutoloadEntry &entry = list_[index];
+        switch (tag)
+        {
+        case kUp:
+        case kDown:
+            if (hui::payloader::move_entry(list_, index, tag == kUp ? -1 : 1))
+            {
+                save();
+                form_.focus_row(kFirstEntry + focused_entry_ + (tag == kUp ? -1 : 1));
+            }
+            return;
+        case kLonger:
+            entry.wait_ms = std::min(entry.wait_ms + kWaitStepMs, hui::payloader::kMaxWaitMs);
+            save();
+            return;
+        case kShorter:
+            entry.wait_ms = std::max(entry.wait_ms - kWaitStepMs, 0);
+            save();
+            return;
+        case kRemove:
+            list_.erase(list_.begin() + static_cast<std::ptrdiff_t>(index));
+            save();
+            return;
+        default:
+            return;
+        }
+    }
+
+    void draw_side(ui::Painter &paint) const override
+    {
+        const ui::Theme &look = paint.theme();
+        const Rect inside = side_panel(paint, kSide);
+        const float x = inside.x + 44.0f;
+        const float width = inside.w - 88.0f;
+        float y = inside.y + 64.0f;
+        const View &now = view();
+        paint.label("LAST RUN", x, y, 19.0f, look.text_muted);
+        y += 58.0f;
+        if (!now.have_autoload)
+        {
+            paint.body("-", x, y, 24.0f, look.text);
+            return;
+        }
+        const AutoloadStatus &s = now.autoload;
+        paint.heading(state_text(s.state), x, y, 36.0f, look.text);
+        y += 46.0f;
+        char line[96];
+        std::snprintf(line, sizeof(line), "%d started, %d failed, %d skipped", s.successful,
+                      s.failed, s.skipped);
+        paint.body(line, x, y, 23.0f, look.text_muted);
+        y += 50.0f;
+        // One dot per payload of the run: green started, pink failed, grey skipped or to come.
+        float dot_x = x;
+        for (const char outcome : s.outcomes)
+        {
+            Color c = look.surface_high;
+            if (outcome == 's')
+                c = Color::rgb(0x36d67e);
+            else if (outcome == 'f')
+                c = look.primary;
+            paint.fill({dot_x, y - 18.0f, 22.0f, 22.0f}, 11.0f, c);
+            dot_x += 32.0f;
+            if (dot_x > x + width - 22.0f)
+                break;
+        }
+        if (!s.outcomes.empty())
+            y += 40.0f;
+        if (!s.current.empty() && running(s.state))
+        {
+            paint.label("NOW", x, y + 10.0f, 17.0f, look.text_muted);
+            paint.body(title_of(s.current), x, y + 44.0f, 23.0f, look.text);
+            y += 84.0f;
+        }
+        paragraph(paint,
+                  "pldmgr runs this list each time it starts, after the countdown. When it does "
+                  "not open the browser at start (Settings), the PS button skips the list during "
+                  "the countdown.",
+                  x, y + 20.0f, 22.0f, width, look.text_muted);
+    }
+
+  private:
+    std::string title_of(const std::string &target) const
+    {
+        for (const Payload &p : payloads_)
+            if (p.slot == target || p.path == target)
+                return p.title();
+        const std::size_t slash = target.rfind('/');
+        return slash == std::string::npos ? target : target.substr(slash + 1);
+    }
+
+    void rebuild(bool active)
+    {
+        begin_rebuild();
+        if (active)
+        {
+            form_.add_header("Running now");
+            form_.add_value(kProgress, "Progress", "-");
+            form_.add_action(kAbort, "Stop the autoload").danger = true;
+        }
+        form_.add_header("When pldmgr starts");
+        form_.add_toggle(kEnabled, "Start the list", enabled_).description =
+            "pldmgr starts these payloads each time it starts";
+        ui::FormRow &delay = form_.add_stepper(kDelay, "Countdown", delay_, 0, 3600);
+        delay.description = "Seconds before the first payload; time to skip the list";
+        delay.unit = " s";
+        form_.add_header("In this order");
+        if (list_.empty())
+            form_.add_value(kEmpty, "The list is empty", "");
+        int number = 1;
+        for (std::size_t i = 0; i < list_.size(); ++i)
+        {
+            const AutoloadEntry &entry = list_[i];
+            const int id = kFirstEntry + static_cast<int>(i);
+            if (entry.wait)
+            {
+                ui::FormRow &row = form_.add_action(id, "Wait");
+                row.text = wait_text(entry.wait_ms);
+                row.description = "A pause before the next payload";
+                continue;
+            }
+            char label[160];
+            std::snprintf(label, sizeof(label), "%d. %s", number++, title_of(entry.target).c_str());
+            ui::FormRow &row = form_.add_action(id, label);
+            row.description = entry.target;
+            if (!known(entry.target))
+                row.text = "Not installed";
+        }
+        form_.add_action(kAddPayload, "Add a payload").chevron = true;
+        form_.add_action(kAddWait, "Add a wait").description = "One second; change it afterwards";
+        end_rebuild();
+    }
+
+    bool known(const std::string &target) const
+    {
+        for (const Payload &p : payloads_)
+            if (p.slot == target || p.path == target)
+                return true;
+        return false;
+    }
+
+    void open_add_menu(app::Feedback &feedback)
+    {
+        std::vector<ui::MenuItem> items;
+        for (std::size_t i = 0; i < payloads_.size(); ++i)
+        {
+            const Payload &p = payloads_[i];
+            if (p.kind == "usb" || hui::payloader::autoload_contains(list_, p.slot))
+                continue;
+            ui::MenuItem item = menu_item(p.title(), kFirstPayload + static_cast<int>(i));
+            items.push_back(std::move(item));
+        }
+        if (items.empty())
+        {
+            toast(ui::StatusKind::info, "Nothing to add",
+                  "Every installed payload is in the list already");
+            return;
+        }
+        open_menu(std::move(items), feedback);
+    }
+
+    void save()
+    {
+        std::string text;
+        if (!hui::payloader::format_autoload_list(list_, text))
+        {
+            toast(ui::StatusKind::warning, "Not saved", "pldmgr cannot keep this list");
+            return;
+        }
+        pending_ = true;
+        pending_text_ = text;
+        pending_enabled_ = enabled_;
+        pending_delay_ = delay_;
+        pending_since_ = clock_;
+        signature_.clear();
+        hui::payloader::store().save_autoload(enabled_, delay_, text);
+    }
+
+    std::vector<AutoloadEntry> list_;
+    std::vector<Payload> payloads_;
+    std::string signature_;
+    std::string pending_text_;
+    float pending_since_ = 0.0f;
+    float delay_changed_at_ = -1.0f;
+    int delay_ = 5;
+    int pending_delay_ = 5;
+    bool pending_enabled_ = false;
+    int focused_entry_ = 0;
+    bool enabled_ = false;
+    bool pending_ = false;
+};
+
+} // namespace
+
+std::unique_ptr<app::Concept> make_autoload(app::Context &context)
+{
+    return std::make_unique<AutoloadScreen>(context);
+}
+
+} // namespace hui::concepts

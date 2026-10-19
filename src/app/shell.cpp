@@ -252,7 +252,7 @@ void Shell::draw_chrome()
 
         const float left = x + 56;
         float y = 110;
-        std::snprintf(text, sizeof(text), "DESIGN %02zu OF %02zu", current_ + 1, concepts_.size());
+        std::snprintf(text, sizeof(text), "SCREEN %02zu OF %02zu", current_ + 1, concepts_.size());
         ui::text(chrome_, fonts_.semibold, text, left, y, 18, info.accent, gfx::Align::left, 3.0f);
         y += 62;
         ui::text(chrome_, fonts_.display, info.name, left, y, 46, white);
@@ -263,7 +263,7 @@ void Shell::draw_chrome()
             ui::text(chrome_, fonts_.regular, line, left, y, 24, white.with_alpha(0.75f));
         }
         y += 70;
-        ui::text(chrome_, fonts_.semibold, "WHAT IT SHOWS", left, y, 18, white.with_alpha(0.55f),
+        ui::text(chrome_, fonts_.semibold, "HOW IT WORKS", left, y, 18, white.with_alpha(0.55f),
                  gfx::Align::left, 3.0f);
         y += 14;
         for (const char *technique : info.techniques)
@@ -278,17 +278,9 @@ void Shell::draw_chrome()
                 ui::text(chrome_, fonts_.regular, line, left + 28, y, 22, white.with_alpha(0.9f));
             }
         }
-        y += 70;
-        ui::text(chrome_, fonts_.semibold, "SOURCE", left, y, 18, white.with_alpha(0.55f),
-                 gfx::Align::left, 3.0f);
-        y += 40;
-        ui::text(chrome_, fonts_.mono, info.source, left, y, 21, white.with_alpha(0.9f));
-        y += 34;
-        std::snprintf(text, sizeof(text), "sound set: %s", audio::sound_set_name(info.sounds));
-        ui::text(chrome_, fonts_.mono, text, left, y, 21, white.with_alpha(0.6f));
 
         const ui::Hint hints[] = {
-            {ui::Button::l1, "Switch design", ui::Button::r1},
+            {ui::Button::l1, "Switch screen", ui::Button::r1},
             {ui::Button::touchpad, "Close"},
         };
         ui::HintLayout layout;
@@ -297,7 +289,8 @@ void Shell::draw_chrome()
         ui::draw_hints(chrome_, fonts_, glyphs, hints, 2, left, false, layout);
         if (!version_.empty())
         {
-            std::snprintf(text, sizeof(text), "ps5-homebrew-ui %s", version_.c_str());
+            std::snprintf(text, sizeof(text), "PayLoader %s, built on ps5-homebrew-ui",
+                          version_.c_str());
             ui::text(chrome_, fonts_.regular, text, left, 952, 18, white.with_alpha(0.4f));
         }
         chrome_.pop_opacity();
