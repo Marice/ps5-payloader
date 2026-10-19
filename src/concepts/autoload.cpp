@@ -53,14 +53,14 @@ enum MenuTag
 {
     kUp = 1,
     kDown,
-    kLonger,
-    kShorter,
     kRemove,
     kFirstPayload = 1000, // + the index into payloads_ for "Add a payload"
     kFirstFile = 2000,    // + the index into files_ (ps5-autoloader's folder)
 };
 
-constexpr int kWaitStepMs = 500;
+constexpr float kWaitMin = 0.5f; // seconds, the wait sliders' range and step
+constexpr float kWaitMax = 25.0f;
+constexpr float kWaitStep = 0.5f;
 constexpr float kSettleSeconds = 6.0f; // how long an unconfirmed save keeps the screen's copy
 constexpr float kDelayQuiet = 1.0f;    // the countdown stepper saves after this pause
 
@@ -76,6 +76,7 @@ constexpr const char *kTechniques[] = {
 constexpr ui::Hint kHints[] = {
     {ui::Button::dpad, "Move"},
     {ui::Button::cross, "Choose"},
+    {ui::Button::triangle, "Options"},
 };
 
 constexpr app::TourStep kTour[] = {
@@ -87,13 +88,6 @@ constexpr app::TourStep kTour[] = {
     {0.6f, 0, Direction::none, "autoload-menu"},
     {0.3f, action_bit(Action::back), Direction::none},
 };
-
-std::string wait_text(int ms)
-{
-    char text[32];
-    std::snprintf(text, sizeof(text), "%.1f s", static_cast<double>(ms) / 1000.0);
-    return text;
-}
 
 const char *state_text(AutoloadState state)
 {
@@ -188,7 +182,8 @@ class AutoloadScreen final : public Screen
                                view.config.autoload_delay == pending_delay_;
         if (pending_ && (confirmed || clock_ - pending_since_ > kSettleSeconds))
             pending_ = false;
-        if (!pending_)
+        const bool editing = settle_waits();
+        if (!pending_ && !editing)
         {
             list_ = hui::payloader::parse_autoload_list(view.config.autoload_list);
             enabled_ = view.config.autoload_enabled;
@@ -204,7 +199,7 @@ class AutoloadScreen final : public Screen
         const bool active = view.have_autoload && running(view.autoload.state);
         std::string signature = (active ? "A" : "-") + std::to_string(enabled_) + "|";
         for (const AutoloadEntry &e : list_)
-            signature += (e.wait ? "!" + std::to_string(e.wait_ms) : e.target) + ",";
+            signature += (e.wait ? std::string("!") : e.target) + ",";
         for (const Payload &p : payloads_)
             signature += p.slot + "/";
         if (signature != signature_)
@@ -212,6 +207,7 @@ class AutoloadScreen final : public Screen
             signature_ = signature;
             rebuild(active);
         }
+        sync_wait_sliders();
         form_.set_toggle(kEnabled, enabled_);
         if (delay_changed_at_ < 0.0f)
             form_.set_stepper(kDelay, delay_);
@@ -245,26 +241,28 @@ class AutoloadScreen final : public Screen
         default:
             break;
         }
+        open_entry_menu(id, feedback);
+    }
+
+    void north(int id, app::Feedback &feedback) override
+    {
+        open_entry_menu(id, feedback);
+    }
+
+    // Move up, move down, remove: for a payload (Cross or Triangle) and a wait (Triangle; its
+    // left and right change the time).
+    void open_entry_menu(int id, app::Feedback &feedback)
+    {
         const int index = id - kFirstEntry;
         if (index < 0 || index >= static_cast<int>(list_.size()))
             return;
         focused_entry_ = index;
-        const AutoloadEntry &entry = list_[static_cast<std::size_t>(index)];
         std::vector<ui::MenuItem> items;
         ui::MenuItem up = menu_item("Move up", kUp);
         up.disabled = index == 0;
         ui::MenuItem down = menu_item("Move down", kDown);
         down.disabled = index + 1 >= static_cast<int>(list_.size());
         items = {up, down};
-        if (entry.wait)
-        {
-            ui::MenuItem longer = menu_item("Wait longer", kLonger, "+0.5 s");
-            longer.disabled = entry.wait_ms + kWaitStepMs > hui::payloader::kMaxWaitMs;
-            ui::MenuItem shorter = menu_item("Wait shorter", kShorter, "-0.5 s");
-            shorter.disabled = entry.wait_ms <= 0;
-            items.push_back(longer);
-            items.push_back(shorter);
-        }
         ui::MenuItem line;
         line.separator = true;
         ui::MenuItem remove = menu_item("Remove from the list", kRemove);
@@ -285,6 +283,18 @@ class AutoloadScreen final : public Screen
         {
             delay_ = form_.stepper_value(kDelay);
             delay_changed_at_ = clock_;
+        }
+        else
+        {
+            const int index = id - kFirstEntry;
+            if (index >= 0 && index < static_cast<int>(list_.size()) &&
+                list_[static_cast<std::size_t>(index)].wait)
+            {
+                // Saved once the slider rests (kDelayQuiet), not at every step.
+                list_[static_cast<std::size_t>(index)].wait_ms =
+                    static_cast<int>(form_.slider_value(id) * 1000.0f + 0.5f);
+                wait_changed_at_ = clock_;
+            }
         }
     }
 
@@ -320,7 +330,6 @@ class AutoloadScreen final : public Screen
         const std::size_t index = static_cast<std::size_t>(focused_entry_);
         if (index >= list_.size())
             return;
-        AutoloadEntry &entry = list_[index];
         switch (tag)
         {
         case kUp:
@@ -330,14 +339,6 @@ class AutoloadScreen final : public Screen
                 save();
                 form_.focus_row(kFirstEntry + focused_entry_ + (tag == kUp ? -1 : 1));
             }
-            return;
-        case kLonger:
-            entry.wait_ms = std::min(entry.wait_ms + kWaitStepMs, hui::payloader::kMaxWaitMs);
-            save();
-            return;
-        case kShorter:
-            entry.wait_ms = std::max(entry.wait_ms - kWaitStepMs, 0);
-            save();
             return;
         case kRemove:
             list_.erase(list_.begin() + static_cast<std::ptrdiff_t>(index));
@@ -419,11 +420,12 @@ class AutoloadScreen final : public Screen
         if (pending_ &&
             (view.chain_list.text == pending_text_ || clock_ - pending_since_ > kSettleSeconds))
             pending_ = false;
-        if (!pending_)
+        const bool editing = settle_waits();
+        if (!pending_ && !editing)
             list_ = view.chain_list.entries;
         std::string signature = "F" + view.chain.directory + "|";
         for (const AutoloadEntry &e : list_)
-            signature += (e.wait ? "!" + std::to_string(e.wait_ms) : e.target) + ",";
+            signature += (e.wait ? std::string("!") : e.target) + ",";
         for (const std::string &f : files_)
             signature += f + "/";
         for (const Payload &p : payloads_)
@@ -435,6 +437,7 @@ class AutoloadScreen final : public Screen
             signature_ = signature;
             rebuild_file_chain(view);
         }
+        sync_wait_sliders();
     }
 
     void rebuild_file_chain(const View &view)
@@ -454,12 +457,10 @@ class AutoloadScreen final : public Screen
             const int id = kFirstEntry + static_cast<int>(i);
             if (entry.wait)
             {
-                ui::FormRow &row = form_.add_action(id, "Wait");
-                row.text = wait_text(entry.wait_ms);
-                row.description =
-                    after_etahen
-                        ? "etaHEN needs this time to start; a shorter wait can break the chain"
-                        : "A pause before the next payload";
+                add_wait_row(id, entry,
+                             after_etahen ? "etaHEN needs this time to start; a shorter wait "
+                                            "can break the chain"
+                                          : "A pause before the next payload");
                 after_etahen = false;
                 continue;
             }
@@ -514,6 +515,42 @@ class AutoloadScreen final : public Screen
         paragraph(paint, text, x, y, 22.0f, width, look.text_muted);
     }
 
+    // 0.5 to 25 seconds in steps of 0.5; a longer (or shorter) wait already in the list widens the
+    // range instead of being cut.
+    void add_wait_row(int id, const AutoloadEntry &entry, const char *description)
+    {
+        const float seconds = static_cast<float>(entry.wait_ms) / 1000.0f;
+        ui::FormRow &row = form_.add_slider(id, "Wait", seconds, std::min(kWaitMin, seconds),
+                                            std::max(kWaitMax, seconds), kWaitStep);
+        row.unit = " s";
+        row.decimals = 1;
+        row.description = description;
+    }
+
+    // The sliders show the list (another app may have changed it), except while one is moved.
+    void sync_wait_sliders()
+    {
+        if (wait_changed_at_ >= 0.0f)
+            return;
+        for (std::size_t i = 0; i < list_.size(); ++i)
+            if (list_[i].wait)
+                form_.set_slider(kFirstEntry + static_cast<int>(i),
+                                 static_cast<float>(list_[i].wait_ms) / 1000.0f);
+    }
+
+    // A slider was moved: save after it rests. True while that save is still to come.
+    bool settle_waits()
+    {
+        if (wait_changed_at_ < 0.0f)
+            return false;
+        if (clock_ - wait_changed_at_ > kDelayQuiet)
+        {
+            wait_changed_at_ = -1.0f;
+            save();
+        }
+        return true;
+    }
+
     static std::string lower(const std::string &text)
     {
         std::string out;
@@ -562,9 +599,7 @@ class AutoloadScreen final : public Screen
             const int id = kFirstEntry + static_cast<int>(i);
             if (entry.wait)
             {
-                ui::FormRow &row = form_.add_action(id, "Wait");
-                row.text = wait_text(entry.wait_ms);
-                row.description = "A pause before the next payload";
+                add_wait_row(id, entry, "A pause before the next payload");
                 continue;
             }
             char label[160];
@@ -671,6 +706,7 @@ class AutoloadScreen final : public Screen
     std::string pending_text_;
     float pending_since_ = 0.0f;
     float delay_changed_at_ = -1.0f;
+    float wait_changed_at_ = -1.0f;
     int delay_ = 5;
     int pending_delay_ = 5;
     bool pending_enabled_ = false;

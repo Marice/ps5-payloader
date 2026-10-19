@@ -186,4 +186,29 @@ TEST_F(Screens, AutoloadEditsTheAutoloadersListWithoutPldmgr)
     fs::remove_all(root);
 }
 
+TEST_F(Screens, AutoloadSavesAWaitOnceTheSliderRests)
+{
+    namespace fs = std::filesystem;
+    const std::string root = (fs::temp_directory_path() / "payloader-screens-slider").string();
+    fs::remove_all(root);
+    fs::create_directories(root + "/data/ps5_autoloader");
+    std::ofstream(root + "/data/ps5_autoloader/autoload.txt") << "websrv.elf\n!3000\netaHEN.elf\n";
+    fake_.set_offline(true);
+    hui::payloader::install_store([this] { return fake_.transport(); }, root);
+
+    const std::unique_ptr<Concept> screen = hui::concepts::make_autoload(context_);
+    screen->enter();
+    settle(*screen);
+    step(*screen, nav(Direction::down));  // the wait after websrv
+    step(*screen, nav(Direction::right)); // + 0.5 s
+    std::stringstream before;
+    before << std::ifstream(root + "/data/ps5_autoloader/autoload.txt").rdbuf();
+    EXPECT_EQ(before.str(), "websrv.elf\n!3000\netaHEN.elf\n"); // not at every step
+    settle(*screen);
+    std::stringstream after;
+    after << std::ifstream(root + "/data/ps5_autoloader/autoload.txt").rdbuf();
+    EXPECT_EQ(after.str(), "websrv.elf\n!3500\netaHEN.elf\n");
+    fs::remove_all(root);
+}
+
 } // namespace
