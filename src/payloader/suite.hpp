@@ -35,6 +35,16 @@ bool is_suite_url(std::string_view url);
 // The suite's source in pldmgr's repository list, or null.
 const RepoSource *suite_source(const std::vector<RepoSource> &sources);
 
+// How far the suite is installed: how many of its three payloads, and whether one of them has an
+// update. Other payloads in the suite's repository (ps5-smbd) do not count: "Install the whole
+// suite" installs only the three, so they must not make it read "Installed" or "Update ready".
+struct SuiteProgress
+{
+    int installed = 0;
+    bool update = false;
+};
+SuiteProgress suite_progress(const RepoSource &suite, const PayloadList &installed);
+
 // The suite position of a boot list entry, a payload id or file name: 0, 1, 2, or -1 for another.
 // "ps5-exporter", "ps5-exporter.elf", "repo/ps5-exporter@1a2b3c4d" and "local/ps5-exporter" all
 // count.
