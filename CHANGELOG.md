@@ -3,7 +3,7 @@
 All notable changes to PayLoader are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are the app's content version.
 
-## [Unreleased]
+## [v00.001.001] - 2026-10-30
 
 ### Fixed
 
