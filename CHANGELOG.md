@@ -3,6 +3,14 @@
 All notable changes to PayLoader are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are the app's content version.
 
+## [Unreleased]
+
+### Fixed
+
+- Repository screen: the "Install the whole suite" row counts only ps5-exporter, ps5-homeassistant and ps5-signal.
+  Another payload in the suite's repository no longer makes it read "Update ready" for good, or "Installed" while
+  one of the three is missing.
+
 ## [v00.001.000] - 2026-10-19
 
 First release.

@@ -380,17 +380,13 @@ class RepositoryScreen final : public Screen
         const hui::payloader::RepoSource *suite = hui::payloader::suite_source(view.repository);
         if (suite == nullptr)
             return {};
-        int installed = 0;
-        bool update = false;
-        for (const RepoPayload &p : suite->payloads)
-        {
-            const RepoStatus status = hui::payloader::repo_status(p, suite->url, view.payloads);
-            installed += status.kind == RepoStatus::Kind::installed ? 1 : 0;
-            update = update || status.kind == RepoStatus::Kind::update;
-        }
-        if (update)
+        const hui::payloader::SuiteProgress progress =
+            hui::payloader::suite_progress(*suite, view.payloads);
+        if (progress.update)
             return "Update ready";
-        return installed >= static_cast<int>(hui::payloader::kSuiteIds.size()) ? "Installed" : "";
+        return progress.installed >= static_cast<int>(hui::payloader::kSuiteIds.size())
+                   ? "Installed"
+                   : "";
     }
 
     // ps5-exporter and ps5-signal are installed (from any repository).

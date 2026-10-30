@@ -66,6 +66,59 @@ TEST(PayloaderSuite, KnowsItsPayloadsByAnyName)
     EXPECT_TRUE(is_suite_url(std::string(kSuiteUrl) + "/"));
 }
 
+// The suite row counts only the three: another payload in the suite's repository (ps5-smbd) neither
+// makes it "Installed" nor "Update ready", since "Install the whole suite" would not touch it.
+TEST(PayloaderSuite, ProgressCountsOnlyTheThree)
+{
+    const auto offered =
+        [](const std::string &id, const std::string &version, const std::string &sum)
+    {
+        RepoPayload p;
+        p.id = id;
+        p.name = id;
+        p.filename = id + ".elf";
+        p.version = version;
+        p.checksum = sum;
+        return p;
+    };
+    const auto have = [](const std::string &id, const std::string &version, const std::string &sum)
+    {
+        Payload p;
+        p.slot = "repo/" + id + "@1a2b3c4d";
+        p.kind = "repo";
+        p.id = id;
+        p.name = id;
+        p.filename = id + ".elf";
+        p.version = version;
+        p.checksum = sum;
+        p.source_url = kSuiteUrl;
+        return p;
+    };
+    RepoSource suite;
+    suite.url = kSuiteUrl;
+    suite.payloads = {offered("ps5-exporter", "v0.3.1", "aa"),
+                      offered("ps5-homeassistant", "v0.3.0", "bb"),
+                      offered("ps5-signal", "v0.2.1", "cc"), offered("ps5-smbd", "v0.2.0", "dd")};
+    PayloadList installed;
+    installed.items = {have("ps5-exporter", "v0.3.1", "aa"), have("ps5-signal", "v0.2.1", "cc"),
+                       have("ps5-smbd", "v0.1.0", "d0")};
+
+    SuiteProgress progress = suite_progress(suite, installed);
+    EXPECT_EQ(progress.installed,
+              2); // ps5-homeassistant is missing; ps5-smbd does not stand in for it
+    EXPECT_FALSE(progress.update); // ps5-smbd's update is not the suite's
+
+    installed.items.push_back(have("ps5-homeassistant", "v0.3.0", "bb"));
+    progress = suite_progress(suite, installed);
+    EXPECT_EQ(progress.installed, 3);
+    EXPECT_FALSE(progress.update);
+
+    installed.items[0] = have("ps5-exporter", "v0.3.0", "a0");
+    progress = suite_progress(suite, installed);
+    EXPECT_EQ(progress.installed, 2);
+    EXPECT_TRUE(progress.update);
+}
+
 TEST(PayloaderSuite, PlacesPayloadsInSuiteOrder)
 {
     // Like Signal Companion: before the first suite payload that comes after it, with a wait.

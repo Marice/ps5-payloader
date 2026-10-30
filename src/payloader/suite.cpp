@@ -3,6 +3,8 @@
 
 #include "payloader/suite.hpp"
 
+#include "payloader/repo_status.hpp"
+
 #include <cctype>
 
 namespace hui::payloader
@@ -48,6 +50,20 @@ const RepoSource *suite_source(const std::vector<RepoSource> &sources)
         if (is_suite_url(source.url))
             return &source;
     return nullptr;
+}
+
+SuiteProgress suite_progress(const RepoSource &suite, const PayloadList &installed)
+{
+    SuiteProgress progress;
+    for (const RepoPayload &payload : suite.payloads)
+    {
+        if (suite_rank(payload.key()) < 0)
+            continue;
+        const RepoStatus status = repo_status(payload, suite.url, installed);
+        progress.installed += status.kind == RepoStatus::Kind::installed ? 1 : 0;
+        progress.update = progress.update || status.kind == RepoStatus::Kind::update;
+    }
+    return progress;
 }
 
 int suite_rank(std::string_view entry)
