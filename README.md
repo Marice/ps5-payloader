@@ -1,3 +1,5 @@
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/H5L629ZHNX)
+
 # PayLoader
 
 A PS5 homebrew app (PPSA67670) that lets you manage your payloads with the controller, on the television. It is a
