@@ -3,6 +3,8 @@
 
 #include "gfx/image.hpp"
 
+#include "core/save_file.hpp"
+
 extern "C"
 {
 #include "third_party/stb/image.h"
@@ -10,25 +12,24 @@ extern "C"
 
 #include <GL/glcorearb.h>
 
-#include <fstream>
-#include <iterator>
-#include <vector>
+#include <string>
 
 namespace hui::gfx
 {
 
 std::uint32_t load_png_texture(const std::string &path)
 {
-    std::ifstream file(path, std::ios::binary);
-    const std::vector<unsigned char> png((std::istreambuf_iterator<char>(file)),
-                                         std::istreambuf_iterator<char>());
-    if (png.empty())
+    // Read with the kit's reader, not std::ifstream: libc++'s streams pull in locale functions
+    // (strtod_l and others) that the console's libc lacks.
+    std::string png;
+    if (!save::read_file(path, &png) || png.empty())
         return 0;
     int width = 0;
     int height = 0;
     int channels = 0;
-    unsigned char *rgba = stbi_load_from_memory(png.data(), static_cast<int>(png.size()), &width,
-                                                &height, &channels, 4);
+    unsigned char *rgba =
+        stbi_load_from_memory(reinterpret_cast<const unsigned char *>(png.data()),
+                              static_cast<int>(png.size()), &width, &height, &channels, 4);
     if (rgba == nullptr)
         return 0;
     GLuint texture = 0;
