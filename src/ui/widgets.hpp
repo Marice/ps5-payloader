@@ -118,6 +118,12 @@ class Painter
     // Black or white, whichever reads on the given colour.
     static gfx::Color on(gfx::Color background);
 
+    // The list it draws into, for what has no widget here (an image).
+    gfx::DrawList &list() const
+    {
+        return list_;
+    }
+
   private:
     gfx::DrawList &list_;
     const Fonts &fonts_;

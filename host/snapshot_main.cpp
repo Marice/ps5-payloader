@@ -22,7 +22,9 @@
 #include "demo/catalog.hpp"
 #include "payloader/demo.hpp"
 #include "payloader/store.hpp"
+#include "concepts/concepts.hpp"
 #include "gfx/gl_program.hpp"
+#include "gfx/image.hpp"
 #include "gfx/renderer.hpp"
 #include "manifest.hpp"
 #include "ui/fonts.hpp"
@@ -200,6 +202,7 @@ int main(int argc, char **argv)
     if (std::getenv("PAYLOADER_OFFLINE") == nullptr)
         hui::payloader::install_store([] { return hui::payloader::make_demo_transport(); },
                                       demo_root);
+    hui::concepts::set_support_qr(hui::gfx::load_png_texture, assets + "/support/ko-fi-qr.png");
     hui::demo::Catalog catalog;
     if (!catalog.build_covers(renderer, fonts))
     {

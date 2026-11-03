@@ -39,6 +39,7 @@ When pldmgr does not run, every screen says how to start it and checks again eve
 | **Autoload** | What starts with the console, in order, with waits between the payloads: the boot chain your console actually uses (see below). **Cross** on an entry moves it, changes a wait or removes it. For pldmgr's own list also on or off and the countdown; while pldmgr runs it, the screen shows its progress and can stop it. |
 | **Running** | The payloads that run now, with their memory. **Cross** stops one, after it asks. The system's own processes and pldmgr itself are not listed. |
 | **Settings** | pldmgr's repositories (add one by its address, remove one) and its options: extra repositories, the browser at start, its own home screen icon, the disc player, USB drives. |
+| **Support** | A QR code to [Ko-fi](https://ko-fi.com/H5L629ZHNX): if you like what I make, you can buy me a coffee or a beer. Works without pldmgr too. |
 
 <p>
 <img src="docs/media/payloader/repository.png" width="49%" alt="The Repository screen">

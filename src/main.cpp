@@ -18,7 +18,9 @@
 #include "core/settings.hpp"
 #include "core/version.hpp"
 #include "demo/catalog.hpp"
+#include "concepts/concepts.hpp"
 #include "gfx/canvas.hpp"
+#include "gfx/image.hpp"
 #include "gfx/renderer.hpp"
 #include "platform/ps5/audio_out.hpp"
 #include "platform/ps5/display_egl.hpp"
@@ -210,6 +212,8 @@ int main()
         sys::log("[HUI] sound rejected %s", error.c_str());
 
     hui::payloader::set_payloader_paths(kAssets, kDataRoot);
+    hui::concepts::set_support_qr(hui::gfx::load_png_texture,
+                                  std::string(kAssets) + "/support/ko-fi-qr.png");
     app::Shell shell(fonts, catalog, kDataRoot, renderer.glass_texture());
     const std::string version = read_content_version("/app0/sce_sys/param.json");
     shell.set_version(version);

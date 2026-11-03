@@ -66,6 +66,13 @@ domain or MIT; see `src/third_party/stb/LICENSE`), vendored at the commit in
 `src/third_party/stb/UPSTREAM` by `tools/update-stb.sh`. It is linked into the
 PS5 application.
 
+## Image decoding
+
+The Support screen's QR code is decoded by [stb_image](https://github.com/nothings/stb)
+(public domain or MIT; see `src/third_party/stb/LICENSE`), vendored at the same
+commit by the same script, with PNG support only. It is linked into the PS5
+application.
+
 ## Shader distance functions
 
 The fragment shader in `src/gfx/gl_batch.cpp` adapts the two-dimensional

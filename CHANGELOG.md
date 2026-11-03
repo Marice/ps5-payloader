@@ -3,6 +3,13 @@
 All notable changes to PayLoader are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are the app's content version.
 
+## [Unreleased]
+
+### Added
+
+- Support screen, after Settings: a QR code to Ko-fi, for those who'd like to buy me a coffee or a beer. It works
+  without pldmgr as well.
+
 ## [v00.001.001] - 2026-10-30
 
 ### Fixed
