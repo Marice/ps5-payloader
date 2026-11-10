@@ -3,6 +3,15 @@
 All notable changes to PayLoader are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are the app's content version.
 
+## [v00.001.003] - 2026-11-10
+
+### Fixed
+
+- Repositories load on consoles where PayLoader made pldmgr's folder before pldmgr did. That folder was readable
+  but not writable for pldmgr, so pldmgr could not save its repositories or sources: PayLoader showed no
+  payloads to install or update. PayLoader now opens the folder for pldmgr, also on consoles where it is already
+  there.
+
 ## [v00.001.002] - 2026-11-03
 
 ### Added

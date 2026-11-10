@@ -208,6 +208,22 @@ TEST_F(SuiteStoreTest, AddsTheSuiteSourceAndShowsExtraSources)
     EXPECT_TRUE(told);
 }
 
+// On the PS5 even root may not write in a folder another user owns: a /data/pldmgr that an older
+// PayLoader made (0755) kept pldmgr from saving its repositories and sources.
+TEST_F(SuiteStoreTest, OpensAPldmgrFolderItMadeForPldmgr)
+{
+    fs::create_directories(root_ + "/data/pldmgr");
+    fs::permissions(root_ + "/data/pldmgr", fs::perms(0755));
+    settle();
+    EXPECT_EQ(fs::status(root_ + "/data/pldmgr").permissions() & fs::perms::all, fs::perms(0777));
+}
+
+TEST_F(SuiteStoreTest, LeavesAMissingPldmgrFolderToPldmgr)
+{
+    settle();
+    EXPECT_FALSE(fs::exists(root_ + "/data/pldmgr"));
+}
+
 TEST_F(SuiteStoreTest, InstallsTheSuiteInOrderAndThenAsks)
 {
     settle();

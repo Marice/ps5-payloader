@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <thread>
 #include <chrono>
+#include <unistd.h>
 #include <utility>
 
 namespace hui::payloader
@@ -65,6 +66,19 @@ std::string join_csv(const std::vector<std::string> &items)
         out += item;
     }
     return out;
+}
+
+// pldmgr saves its sources and repositories in /data/pldmgr. On the PS5 even root may not write in
+// a folder another user owns, so a folder PayLoader made is opened for everyone, as /data's are.
+// A folder pldmgr made is its own and stays as it is.
+void open_pldmgr_folder(const std::string &folder)
+{
+    struct stat info
+    {
+    };
+    if (::stat(folder.c_str(), &info) == 0 && S_ISDIR(info.st_mode) && info.st_uid == ::geteuid() &&
+        (info.st_mode & 0777) != 0777)
+        ::chmod(folder.c_str(), 0777);
 }
 
 } // namespace
@@ -289,6 +303,7 @@ void Store::check_link(Pldmgr &api)
     relinked_ = true;
     repository_asked_ = false;
     sources_asked_ = false;
+    open_pldmgr_folder(root_ + "/data/pldmgr");
     ensure_front_end_off(api);
     ensure_suite_source(api);
     read_payloads(api);
@@ -793,6 +808,7 @@ void Store::start_pldmgr()
                 {
                     save::ensure_directory(root_ + "/data/pldmgr");
                 }
+                open_pldmgr_folder(root_ + "/data/pldmgr");
                 const std::string wanted = config_without_front_end(exists ? current : "");
                 if (error.empty() && !hidden && wanted != current &&
                     !save::write_atomic(path, wanted).empty())
