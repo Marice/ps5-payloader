@@ -46,6 +46,7 @@ enum Row
     kEmpty,
     kChainInfo,
     kRecovery,
+    kRestore,
     kSource,
     kPldmgrList,
     kFirstEntry = 100, // + the entry's index
@@ -63,6 +64,7 @@ enum MenuTag
 // Dialog purposes.
 constexpr int kConfirmRecovery = 1;
 constexpr int kConfirmSource = 2;
+constexpr int kConfirmRestore = 3;
 
 // What to do when nothing starts any more, said wherever the stick comes up.
 constexpr const char *kEmergency =
@@ -271,6 +273,17 @@ class AutoloadScreen final : public Screen
                  1},
                 feedback);
             return;
+        case kRestore:
+            ask(kConfirmRestore,
+                {ui::StatusKind::warning,
+                 "Restore the list from the USB stick?",
+                 "The list here and the files it names are first kept on the stick, in "
+                 "payloader-before-restore. Then the stick's list and its files replace them. "
+                 "It starts with the console's next start.",
+                 {{"Cancel"}, {"Restore it", ui::ButtonKind::primary}},
+                 1},
+                feedback);
+            return;
         default:
             break;
         }
@@ -341,6 +354,8 @@ class AutoloadScreen final : public Screen
     {
         if (purpose == kConfirmRecovery && choice == 1)
             hui::payloader::store().make_recovery_usb();
+        if (purpose == kConfirmRestore && choice == 1)
+            hui::payloader::store().restore_from_usb();
         if (purpose == kConfirmSource)
         {
             if (choice == 1)
@@ -574,6 +589,10 @@ class AutoloadScreen final : public Screen
         form_.add_header("Safety");
         form_.add_action(kRecovery, "Make a recovery USB").description =
             "This list and its files on a USB stick: plug it in when a change breaks the chain";
+        // Shown whenever a stick has the autoloader's list, also when the chain runs from it.
+        if (!view.chain.usb_drive.empty())
+            form_.add_action(kRestore, "Restore from the USB stick").description =
+                "Puts the stick's list back as this console list, with its files";
         if (view.chain.also_pldmgr)
         {
             form_.add_header("Then pldmgr's own list");

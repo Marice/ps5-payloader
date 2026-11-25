@@ -676,6 +676,33 @@ void Store::make_recovery_usb()
         });
 }
 
+void Store::restore_from_usb()
+{
+    mark_busy("restore", true);
+    worker_.queue(
+        [this]
+        {
+            const Chain chain = detect_chain(root_);
+            // The console's list is the target, also when the chain runs from the stick.
+            const std::string directory =
+                chain.usb_list ? "/data/ps5_autoloader" : chain.directory;
+            const std::string error =
+                chain.kind == ChainKind::autoloader && !chain.usb_drive.empty()
+                    ? restore_recovery_usb(root_, chain.usb_drive, directory, timestamp())
+                    : "No recovery copy on a USB stick";
+            Notice n;
+            n.failed = !error.empty();
+            n.title = error.empty() ? "List restored from the USB stick" : "Not restored";
+            n.detail = error.empty()
+                           ? "It starts with the console's next start. The list that was here is "
+                             "kept on the stick, in payloader-before-restore-<time>."
+                           : error;
+            notice(std::move(n));
+            read_chain();
+            mark_busy("restore", false);
+        });
+}
+
 void Store::switch_usb_list(bool on)
 {
     worker_.queue(
