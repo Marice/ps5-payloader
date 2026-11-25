@@ -3,6 +3,16 @@
 All notable changes to PayLoader are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are the app's content version.
 
+## [v00.001.004] - 2026-11-25
+
+### Added
+
+- Restore the boot list from a recovery USB stick: "Restore from the USB stick" under Safety, whenever a stick has ps5-autoloader's list, also while the chain runs from the stick. The stick's list and its files become the list on the console. The console's list is first kept on the stick, in `payloader-before-restore-<time>`. Nothing changes when the stick's copy is incomplete.
+
+### Changed
+
+- When PayLoader cannot write pldmgr's settings, the message now says why (for example `open: Permission denied`), so the cause can be found.
+
 ## [v00.001.003] - 2026-11-10
 
 ### Fixed

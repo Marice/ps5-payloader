@@ -138,6 +138,9 @@ class Store
     // A copy of ps5-autoloader's list and its files on a USB drive, to start from when the list in
     // /data breaks the chain.
     void make_recovery_usb();
+    // Puts the stick's recovery copy back as the console's list, with its files (see
+    // restore_recovery_usb). The console's list is kept on the stick first.
+    void restore_from_usb();
     // Switches the USB stick's list on or off (renames autoload.txt <-> autoload.txt_disabled).
     void switch_usb_list(bool on);
     // Takes every line naming file out of the list; the file stays.

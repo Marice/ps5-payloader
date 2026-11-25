@@ -676,6 +676,33 @@ void Store::make_recovery_usb()
         });
 }
 
+void Store::restore_from_usb()
+{
+    mark_busy("restore", true);
+    worker_.queue(
+        [this]
+        {
+            const Chain chain = detect_chain(root_);
+            // The console's list is the target, also when the chain runs from the stick.
+            const std::string directory =
+                chain.usb_list ? "/data/ps5_autoloader" : chain.directory;
+            const std::string error =
+                chain.kind == ChainKind::autoloader && !chain.usb_drive.empty()
+                    ? restore_recovery_usb(root_, chain.usb_drive, directory, timestamp())
+                    : "No recovery copy on a USB stick";
+            Notice n;
+            n.failed = !error.empty();
+            n.title = error.empty() ? "List restored from the USB stick" : "Not restored";
+            n.detail = error.empty()
+                           ? "It starts with the console's next start. The list that was here is "
+                             "kept on the stick, in payloader-before-restore-<time>."
+                           : error;
+            notice(std::move(n));
+            read_chain();
+            mark_busy("restore", false);
+        });
+}
+
 void Store::switch_usb_list(bool on)
 {
     worker_.queue(
@@ -800,9 +827,11 @@ void Store::start_pldmgr()
                 {
                     const std::string backup = path + ".bak-payloader-" + today();
                     std::string kept;
-                    if (!save::read_file(backup, &kept, 64 * 1024) &&
-                        !save::write_atomic(backup, current).empty())
-                        error = "pldmgr's settings could not be backed up";
+                    const std::string failure =
+                        save::read_file(backup, &kept, 64 * 1024) ? std::string()
+                                                                  : save::write_atomic(backup, current);
+                    if (!failure.empty())
+                        error = "pldmgr's settings could not be backed up (" + failure + ")";
                 }
                 else
                 {
@@ -810,9 +839,11 @@ void Store::start_pldmgr()
                 }
                 open_pldmgr_folder(root_ + "/data/pldmgr");
                 const std::string wanted = config_without_front_end(exists ? current : "");
-                if (error.empty() && !hidden && wanted != current &&
-                    !save::write_atomic(path, wanted).empty())
-                    error = "pldmgr's settings could not be written";
+                const std::string failure =
+                    error.empty() && !hidden && wanted != current ? save::write_atomic(path, wanted)
+                                                                  : std::string();
+                if (!failure.empty())
+                    error = "pldmgr's settings could not be written (" + failure + ")";
             }
             if (error.empty() && !loader_(elf))
                 error = "Nothing took it on port 9021: is an ELF loader running (etaHEN)?";

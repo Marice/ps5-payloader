@@ -158,5 +158,78 @@ TEST_F(ChainTest, CopiesAPayloadInUnlessTheNameIsTaken)
     EXPECT_EQ(read("/data/ps5_autoloader/y.elf"), "OLD");
 }
 
+// The recovery copy on a stick: a list that names two files, both on the stick.
+constexpr const char *kStickList = "a.elf\n!2000\nb.elf\n";
+constexpr const char *kStamp = "20261125-101530";
+
+TEST_F(ChainTest, RestoresTheStickCopyAndKeepsTheConsoleState)
+{
+    write("/data/ps5_autoloader/autoload.txt", kRealList);
+    write("/data/ps5_autoloader/ps5-signal.elf", "OLD");
+    write("/mnt/usb0/ps5_autoloader/autoload.txt_disabled", kStickList);
+    write("/mnt/usb0/ps5_autoloader/a.elf", "A");
+    write("/mnt/usb0/ps5_autoloader/b.elf", "B");
+
+    ASSERT_EQ(restore_recovery_usb(root_, "/mnt/usb0", "/data/ps5_autoloader", kStamp), "");
+    EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt"), kStickList);
+    EXPECT_EQ(read("/data/ps5_autoloader/a.elf"), "A");
+    EXPECT_EQ(read("/data/ps5_autoloader/b.elf"), "B");
+    // The console's list and the files it names that are there go to the stick first.
+    EXPECT_EQ(read("/mnt/usb0/payloader-before-restore-20261125-101530/autoload.txt"), kRealList);
+    EXPECT_EQ(read("/mnt/usb0/payloader-before-restore-20261125-101530/ps5-signal.elf"), "OLD");
+    // The copy it came from stays, and the console's list gets today's backup as usual.
+    EXPECT_EQ(read("/mnt/usb0/ps5_autoloader/autoload.txt_disabled"), kStickList);
+    EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt.bak-payloader-20261125"), kRealList);
+}
+
+TEST_F(ChainTest, RefusesAStickCopyThatNamesAMissingFile)
+{
+    write("/data/ps5_autoloader/autoload.txt", kRealList);
+    write("/mnt/usb0/ps5_autoloader/autoload.txt_disabled", kStickList);
+    write("/mnt/usb0/ps5_autoloader/a.elf", "A"); // b.elf is not on the stick
+    EXPECT_NE(restore_recovery_usb(root_, "/mnt/usb0", "/data/ps5_autoloader", kStamp), "");
+    EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt"), kRealList);
+    EXPECT_FALSE(fs::exists(root_ + "/data/ps5_autoloader/a.elf"));
+    EXPECT_FALSE(fs::exists(root_ + "/mnt/usb0/payloader-before-restore-20261125-101530"));
+}
+
+TEST_F(ChainTest, RestoresAStickListThatIsSwitchedOn)
+{
+    // The chain runs from the stick: its list is autoload.txt, and the console's list is restored.
+    write("/data/ps5_autoloader/autoload.txt", kRealList);
+    write("/mnt/usb0/ps5_autoloader/autoload.txt", kStickList);
+    write("/mnt/usb0/ps5_autoloader/a.elf", "A");
+    write("/mnt/usb0/ps5_autoloader/b.elf", "B");
+
+    ASSERT_EQ(restore_recovery_usb(root_, "/mnt/usb0", "/data/ps5_autoloader", kStamp), "");
+    EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt"), kStickList);
+    EXPECT_EQ(read("/data/ps5_autoloader/a.elf"), "A");
+    EXPECT_EQ(read("/mnt/usb0/ps5_autoloader/autoload.txt"), kStickList);
+}
+
+TEST_F(ChainTest, RestoresIntoAConsoleWithoutAList)
+{
+    write("/mnt/usb0/ps5_autoloader/autoload.txt_disabled", kStickList);
+    write("/mnt/usb0/ps5_autoloader/a.elf", "A");
+    write("/mnt/usb0/ps5_autoloader/b.elf", "B");
+
+    ASSERT_EQ(restore_recovery_usb(root_, "/mnt/usb0", "/data/ps5_autoloader", kStamp), "");
+    EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt"), kStickList);
+    EXPECT_EQ(read("/data/ps5_autoloader/b.elf"), "B");
+    EXPECT_FALSE(fs::exists(root_ + "/mnt/usb0/payloader-before-restore-20261125-101530"));
+}
+
+TEST_F(ChainTest, NeedsTheStickCopyAndAChainOnTheConsole)
+{
+    write("/data/ps5_autoloader/autoload.txt", kRealList);
+    EXPECT_NE(restore_recovery_usb(root_, "/mnt/usb0", "/data/ps5_autoloader", kStamp), "");
+
+    write("/mnt/usb0/ps5_autoloader/autoload.txt", kRealList);
+    write("/mnt/usb0/ps5_autoloader/autoload.txt_disabled", kStickList);
+    EXPECT_NE(restore_recovery_usb(root_, "/mnt/usb0", "/mnt/usb0/ps5_autoloader", kStamp), "");
+    EXPECT_EQ(read("/mnt/usb0/ps5_autoloader/autoload.txt"), kRealList);
+    EXPECT_EQ(read("/data/ps5_autoloader/autoload.txt"), kRealList);
+}
+
 } // namespace
 } // namespace hui::payloader

@@ -82,6 +82,19 @@ std::string copy_into_chain(const std::string &root, const std::string &director
 std::string make_recovery_usb(const std::string &root, const std::string &directory,
                               const std::string &date, std::string &usb);
 
+// Puts the list on a USB drive's recovery copy (usb/ps5_autoloader/autoload.txt_disabled, or
+// autoload.txt when the stick's list is the chain in use) back into directory on the console, with
+// the files it names. directory must be under /data. First the console's list and the files it
+// names that are there go to usb/payloader-before-restore-<stamp>/, so the restore can be undone;
+// the console's list gets today's backup as write_autoloader makes it. Nothing changes when the
+// copy has no list or names a file the stick does not hold. stamp is "20261019-101530"
+// (timestamp()). Returns an error, or "".
+std::string restore_recovery_usb(const std::string &root, const std::string &usb,
+                                 const std::string &directory, const std::string &stamp);
+
+// "20261019-101530" for now, local time.
+std::string timestamp();
+
 // "20261019" for today, local time.
 std::string today();
 

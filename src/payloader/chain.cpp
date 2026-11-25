@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <cctype>
 #include <ctime>
+#include <utility>
 
 namespace hui::payloader
 {
@@ -38,6 +39,13 @@ bool ends_with_nocase(const std::string &name, const char *suffix)
         if (std::tolower(static_cast<unsigned char>(name[name.size() - n + i])) != suffix[i])
             return false;
     return true;
+}
+
+// A payload file the list keeps next to it: not a wait, a full path, a comment or a directive.
+bool is_local_file(const AutoloadEntry &entry)
+{
+    return !entry.wait && !entry.target.empty() && entry.target.front() != '/' &&
+           entry.target.front() != '#' && entry.target.front() != '@';
 }
 
 // The folders with a list at one place (a USB drive's root, or /data): title folders first.
@@ -252,8 +260,7 @@ std::string make_recovery_usb(const std::string &root, const std::string &direct
     }
     for (const AutoloadEntry &entry : list.entries)
     {
-        if (entry.wait || entry.target.empty() || entry.target.front() == '/' ||
-            entry.target.front() == '#' || entry.target.front() == '@')
+        if (!is_local_file(entry))
             continue;
         std::string data;
         if (!save::read_file(root + directory + "/" + entry.target, &data, kMaxPayloadFile))
@@ -269,16 +276,84 @@ std::string make_recovery_usb(const std::string &root, const std::string &direct
     return {};
 }
 
-std::string today()
+std::string restore_recovery_usb(const std::string &root, const std::string &usb,
+                                 const std::string &directory, const std::string &stamp)
+{
+    // The target is the console's list: a list on a stick is never the target.
+    if (directory.rfind("/data/", 0) != 0)
+        return "Only a list on the console can be restored";
+    const std::string folder = usb + "/" + kGeneric;
+    // The copy is switched off, or on when the stick's list is the chain in use.
+    std::string stick_text;
+    if (!save::read_file(root + folder + "/" + kDisabledName, &stick_text, kMaxList) &&
+        !save::read_file(root + folder + "/autoload.txt", &stick_text, kMaxList))
+        return "The USB stick has no recovery copy of the list";
+    const std::vector<AutoloadEntry> entries = parse_autoload_lines(stick_text);
+    std::string text;
+    if (!format_autoload_lines(entries, text))
+        return "The copy on the USB stick holds a name the autoloader cannot read";
+
+    // Read everything first: a file missing from the stick changes nothing.
+    std::vector<std::pair<std::string, std::string>> files;
+    for (const AutoloadEntry &entry : entries)
+    {
+        if (!is_local_file(entry))
+            continue;
+        std::string data;
+        if (!save::read_file(root + folder + "/" + entry.target, &data, kMaxPayloadFile))
+            return entry.target + " is not on the USB stick, so nothing was changed";
+        files.emplace_back(entry.target, std::move(data));
+    }
+    // The console's state goes to the stick first, so this restore can be undone. A console with no
+    // list has nothing to keep: the restore then only fills the list in.
+    std::string console_text;
+    const bool had_list =
+        save::read_file(root + directory + "/autoload.txt", &console_text, kMaxList);
+    const std::string kept = usb + "/payloader-before-restore-" + stamp;
+    if (had_list)
+    {
+        save::ensure_directory(root + kept);
+        if (!save::write_atomic(root + kept + "/autoload.txt", console_text).empty())
+            return "The console's list could not be kept on the USB stick, so nothing was changed";
+        for (const AutoloadEntry &entry : parse_autoload_lines(console_text))
+        {
+            if (!is_local_file(entry))
+                continue;
+            std::string data;
+            if (!save::read_file(root + directory + "/" + entry.target, &data, kMaxPayloadFile))
+                continue;
+            if (!save::write_atomic(root + kept + "/" + entry.target, data).empty())
+                return entry.target + " could not be kept on the USB stick, so nothing was changed";
+        }
+    }
+
+    save::ensure_directory(root + directory);
+    for (const auto &[name, data] : files)
+        if (!save::write_atomic(root + directory + "/" + name, data).empty())
+            return name + " could not be copied to the console";
+    if (!had_list)
+        return save::write_atomic(root + directory + "/autoload.txt", text).empty()
+                   ? std::string()
+                   : "The list could not be written to the console";
+    // The stamp starts with the day's date: that day's backup of the console's list.
+    return write_autoloader(root, directory, entries, stamp.substr(0, 8));
+}
+
+std::string timestamp()
 {
     const std::time_t now = std::time(nullptr);
     // std::localtime, not localtime_r: the console's libc has no localtime_r. Called from the
     // store's worker thread only.
     const std::tm *local = std::localtime(&now);
-    char text[16] = "00000000";
+    char text[32] = "00000000-000000";
     if (local != nullptr)
-        std::strftime(text, sizeof(text), "%Y%m%d", local);
+        std::strftime(text, sizeof(text), "%Y%m%d-%H%M%S", local);
     return text;
+}
+
+std::string today()
+{
+    return timestamp().substr(0, 8);
 }
 
 } // namespace hui::payloader
