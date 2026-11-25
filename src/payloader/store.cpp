@@ -800,9 +800,11 @@ void Store::start_pldmgr()
                 {
                     const std::string backup = path + ".bak-payloader-" + today();
                     std::string kept;
-                    if (!save::read_file(backup, &kept, 64 * 1024) &&
-                        !save::write_atomic(backup, current).empty())
-                        error = "pldmgr's settings could not be backed up";
+                    const std::string failure =
+                        save::read_file(backup, &kept, 64 * 1024) ? std::string()
+                                                                  : save::write_atomic(backup, current);
+                    if (!failure.empty())
+                        error = "pldmgr's settings could not be backed up (" + failure + ")";
                 }
                 else
                 {
@@ -810,9 +812,11 @@ void Store::start_pldmgr()
                 }
                 open_pldmgr_folder(root_ + "/data/pldmgr");
                 const std::string wanted = config_without_front_end(exists ? current : "");
-                if (error.empty() && !hidden && wanted != current &&
-                    !save::write_atomic(path, wanted).empty())
-                    error = "pldmgr's settings could not be written";
+                const std::string failure =
+                    error.empty() && !hidden && wanted != current ? save::write_atomic(path, wanted)
+                                                                  : std::string();
+                if (!failure.empty())
+                    error = "pldmgr's settings could not be written (" + failure + ")";
             }
             if (error.empty() && !loader_(elf))
                 error = "Nothing took it on port 9021: is an ELF loader running (etaHEN)?";

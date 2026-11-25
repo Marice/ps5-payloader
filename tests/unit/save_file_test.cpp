@@ -122,6 +122,20 @@ TEST(Settings, ClampsOutOfRangeValuesAndRejectsGarbage)
     EXPECT_EQ(untouched.music_volume, 2);
 }
 
+// The reason comes back with the failure, so a screen can say what went wrong.
+TEST(SaveFile, SaysWhyItCouldNotWrite)
+{
+    const std::string root = ::testing::TempDir() + "hui_write_reason";
+    ASSERT_TRUE(hui::save::ensure_directory(root));
+    const std::string path = root + "/config.txt";
+    ASSERT_TRUE(hui::save::ensure_directory(path + ".tmp"));
+
+    EXPECT_EQ(hui::save::write_atomic(path, "x"), "open: Is a directory");
+
+    rmdir((path + ".tmp").c_str());
+    rmdir(root.c_str());
+}
+
 TEST(SaveFile, ListFilesPrefersTheIndex)
 {
     const std::string dir = ::testing::TempDir() + "hui_list_files";
